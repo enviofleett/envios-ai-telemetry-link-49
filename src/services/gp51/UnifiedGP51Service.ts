@@ -69,18 +69,17 @@ export class UnifiedGP51Service {
     }
   }
 
-  // Fixed: Added missing getMultipleDevicesLastPositions method
   async getMultipleDevicesLastPositions(deviceIds: string[]): Promise<GP51Position[]> {
     return this.dataService.getMultipleDevicesLastPositions(deviceIds);
   }
 
   async getLastPositions(deviceIds: string[]): Promise<GP51Position[]> {
-    return this.getMultipleDevicesLastPositions(deviceIds); // Fixed: use the implemented method
+    return this.getMultipleDevicesLastPositions(deviceIds);
   }
 
   async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     if (deviceIds && deviceIds.length > 0) {
-      return this.getMultipleDevicesLastPositions(deviceIds); // Fixed: use the implemented method
+      return this.getMultipleDevicesLastPositions(deviceIds);
     }
     return [];
   }

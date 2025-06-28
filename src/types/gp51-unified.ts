@@ -1,11 +1,11 @@
 
-// CORRECTED UNIFIED GP51 TYPES WITH PROPER EXPORTS
+// CORRECTED UNIFIED GP51 TYPES WITH ALL MISSING PROPERTIES AND METHODS
 // This file fixes all export issues and missing interfaces
 
 // ====== 1. CORE INTERFACES ======
 
 export interface GP51HealthStatus {
-  status: 'connected' | 'disconnected' | 'testing' | 'error';
+  status: 'connected' | 'disconnected' | 'testing' | 'error' | 'healthy' | 'unhealthy';
   lastCheck: string;
   isConnected: boolean;
   lastPingTime: string;
@@ -21,6 +21,7 @@ export interface GP51HealthStatus {
   activeDevices?: number;
   tokenValid?: boolean;
   sessionValid?: boolean;
+  responseTime?: number; // ADDED - fixes GPS51Dashboard and UnifiedGP51Dashboard errors
 }
 
 export interface GP51Device {
@@ -41,6 +42,9 @@ export interface GP51Device {
   loginame?: string;
   groupid?: number;
   groupname?: string;
+  // ADDED MISSING PROPERTIES
+  isActive?: boolean; // ADDED - fixes GP51CompleteAPIController error
+  isOnline?: boolean; // ADDED - fixes GP51UnifiedDataService error
 }
 
 export interface GP51Position {
@@ -180,7 +184,7 @@ export interface GP51ProcessedPosition extends GP51Position {
   lastSeenAgo?: string;
 }
 
-// ====== 2. MISSING INTERFACES (ADDED) ======
+// ====== 2. MISSING INTERFACES ======
 
 export interface GP51TestResult {
   success: boolean;
@@ -210,6 +214,7 @@ export interface RealAnalyticsData {
   activeUsers: number;
   totalVehicles: number;
   activeVehicles: number;
+  
   vehicleStatus: {
     total: number;
     online: number;
@@ -217,32 +222,47 @@ export interface RealAnalyticsData {
     moving: number;
     parked: number;
   };
+  
   fleetUtilization: {
     percentage: number;
     hoursActive: number;
     totalHours: number;
   };
+  
   performance: {
     averageSpeed: number;
     totalDistance: number;
     alertCount: number;
     fuelEfficiency: number;
   };
+  
   alerts: {
     critical: number;
     warning: number;
     info: number;
     total: number;
   };
+  
   locations: {
     lastUpdated: string;
     accuracy: number;
     coverage: number;
   };
+  
   sync: {
     lastSync: string;
     pendingUpdates: number;
     syncStatus: 'success' | 'pending' | 'error';
+    importedUsers?: number; // ADDED - fixes ModernAnalyticsDashboard error
+    importedVehicles?: number; // ADDED - fixes ModernAnalyticsDashboard error
+  };
+  
+  // ADDED - fixes ModernAnalyticsDashboard growth errors
+  growth?: {
+    newUsers: number;
+    newVehicles: number;
+    performance: number;
+    utilization: number;
   };
 }
 
@@ -268,24 +288,6 @@ export interface GP51AuthResponse {
   };
 }
 
-export interface GP51FleetData {
-  devices: GP51Device[];
-  positions: GP51Position[];
-  groups: GP51Group[];
-  summary: {
-    totalDevices: number;
-    onlineDevices: number;
-    movingDevices: number;
-    alertCount: number;
-  };
-  lastUpdate: string;
-  metadata?: {
-    timestamp: string;
-    source: string;
-    version: string;
-  };
-}
-
 export interface GP51FleetDataOptions {
   includePositions?: boolean;
   includeHistory?: boolean;
@@ -294,6 +296,33 @@ export interface GP51FleetDataOptions {
     end: string;
   };
   deviceIds?: string[];
+  groupFilter?: string[]; // ADDED - fixes GP51CompleteAPIController error
+}
+
+export interface GP51FleetDataSummary {
+  totalDevices: number;
+  onlineDevices: number;
+  movingDevices: number;
+  alertCount: number;
+  activeDevices?: number; // ADDED - fixes GP51CompleteAPIController error
+  totalGroups?: number;
+}
+
+export interface GP51FleetData {
+  devices: GP51Device[];
+  positions: GP51Position[];
+  groups: GP51Group[];
+  summary: GP51FleetDataSummary;
+  lastUpdate: string;
+  metadata?: {
+    timestamp: string;
+    source: string;
+    version: string;
+    requestId?: string; // ADDED - fixes GP51CompleteAPIController error
+    responseTime?: number;
+    dataVersion?: string;
+    fetchTime?: string;
+  };
 }
 
 export interface GP51FleetDataResponse {
@@ -310,11 +339,10 @@ export interface GP51FleetDataResponse {
 }
 
 export interface GP51LiveData {
-  devices: GP51Device[];
   positions: GP51Position[];
-  lastUpdate: string;
-  isRealTime: boolean;
-  connectionStatus: 'connected' | 'disconnected' | 'reconnecting';
+  lastUpdate: Date;
+  filter(predicate: (item: GP51Position) => boolean): GP51Position[];
+  length: number;
 }
 
 export interface GP51ProcessResult {
@@ -374,13 +402,17 @@ export interface GP51DataService {
   getLiveVehicles(): Promise<GP51FleetDataResponse>;
   getLastPosition(deviceId: string): Promise<GP51Position | null>;
   getMultipleDevicesLastPositions(deviceIds: string[]): Promise<GP51Position[]>;
-  getHistoryTracks(deviceId: string, startTime?: Date, endTime?: Date): Promise<GP51Position[]>;
+  getHistoryTracks(deviceId: string, startTime: string, endTime: string): Promise<GP51Position[]>;
   sendCommand(deviceId: string, command: string, params?: any[]): Promise<any>;
   login(username: string, password: string, type?: string): Promise<{ success: boolean; token?: string; error?: string }>;
   logout(): Promise<void>;
   getToken(): string | null;
   setToken(token: string): void;
   getPositions(deviceIds?: string[]): Promise<GP51Position[]>;
+  // ADDED MISSING METHODS
+  queryMonitorList(): Promise<{ success: boolean; data?: GP51Device[]; groups?: GP51Group[]; error?: string; }>;
+  getPerformanceMetrics(): Promise<GP51PerformanceMetrics>;
+  clearCache(): void;
 }
 
 export interface UseProductionGP51ServiceReturn {
@@ -497,7 +529,8 @@ export const createDefaultHealthStatus = (): GP51HealthStatus => {
     errorMessage: undefined,
     activeDevices: 0,
     tokenValid: false,
-    sessionValid: false
+    sessionValid: false,
+    responseTime: 0
   };
 };
 
@@ -534,13 +567,19 @@ export const createDefaultFleetData = (): GP51FleetData => {
       totalDevices: 0,
       onlineDevices: 0,
       movingDevices: 0,
-      alertCount: 0
+      alertCount: 0,
+      activeDevices: 0,
+      totalGroups: 0
     },
     lastUpdate: new Date().toISOString(),
     metadata: {
       timestamp: new Date().toISOString(),
       source: 'GP51',
-      version: '1.0'
+      version: '1.0',
+      requestId: `req_${Date.now()}`,
+      responseTime: 0,
+      dataVersion: '1.0',
+      fetchTime: new Date().toISOString()
     }
   };
 };
@@ -583,7 +622,15 @@ export const createDefaultAnalyticsData = (): RealAnalyticsData => {
     sync: {
       lastSync: new Date().toISOString(),
       pendingUpdates: 0,
-      syncStatus: 'success'
+      syncStatus: 'success',
+      importedUsers: 0,
+      importedVehicles: 0
+    },
+    growth: {
+      newUsers: 0,
+      newVehicles: 0,
+      performance: 0,
+      utilization: 0
     }
   };
 };
@@ -692,7 +739,9 @@ export class GP51PropertyMapper {
       stared: safeNumber(apiDevice.stared),
       loginame: apiDevice.loginame,
       groupid: safeNumber(apiDevice.groupid),
-      groupname: apiDevice.groupname
+      groupname: apiDevice.groupname,
+      isActive: Boolean(apiDevice.isfree === 1 || apiDevice.isActive),
+      isOnline: Boolean(apiDevice.lastactivetime && (Date.now() - apiDevice.lastactivetime) < 300000)
     };
   }
 

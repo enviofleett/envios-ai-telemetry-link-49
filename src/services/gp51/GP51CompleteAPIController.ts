@@ -10,7 +10,7 @@ import type {
   GP51LiveData
 } from '@/types/gp51-unified';
 import { gp51DataService } from './GP51DataService';
-import { safeToString } from '@/types/gp51-unified';
+import { safeToString, createDefaultFleetData } from '@/types/gp51-unified';
 
 interface GeoBounds {
   north: number;
@@ -87,9 +87,11 @@ export class GP51CompleteAPIController {
       let filteredDevices = devicesResult.data || [];
       if (options?.groupFilter) {
         const groupFilterStrings = options.groupFilter.map(id => 
-          safeToString(id) // Fixed: use safeToString utility
+          safeToString(id)
         );
-        // Apply group filtering logic here if needed
+        filteredDevices = filteredDevices.filter(device => 
+          device.groupname && groupFilterStrings.includes(device.groupname)
+        );
       }
 
       const fleetData: GP51FleetData = {
@@ -98,16 +100,20 @@ export class GP51CompleteAPIController {
         groups: devicesResult.groups || [],
         summary: {
           totalDevices: filteredDevices.length,
-          activeDevices: filteredDevices.filter(d => d.isActive).length,
-          totalGroups: (devicesResult.groups || []).length
+          activeDevices: filteredDevices.filter(d => d.isActive || d.isfree === 1).length,
+          onlineDevices: filteredDevices.filter(d => d.isOnline).length,
+          movingDevices: filteredDevices.filter(d => Boolean(d.isfree === 1)).length,
+          alertCount: 0
         },
-        lastUpdate: new Date(), // Fixed: return Date object
+        lastUpdate: new Date().toISOString(),
         metadata: {
           requestId: Math.random().toString(36).substring(7),
           responseTime: Date.now() - startTime,
           dataVersion: "1.0",
           source: "GP51API",
-          fetchTime: new Date() // Fixed: return Date object
+          fetchTime: new Date().toISOString(),
+          timestamp: new Date().toISOString(),
+          version: "1.0"
         }
       };
 

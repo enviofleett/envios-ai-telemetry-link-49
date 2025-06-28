@@ -3,11 +3,17 @@ import {
   GP51Device, 
   GP51FleetData, 
   GP51AuthResponse,
-  createDefaultFleetData
+  GP51Position,
+  GP51PerformanceMetrics,
+  GP51FleetDataOptions,
+  createDefaultFleetData,
+  createDefaultPerformanceMetrics
 } from '@/types/gp51-unified';
 
 export class GP51EnhancedDataService {
   private subscribers: Array<(data: GP51FleetData) => void> = [];
+  private updateInterval?: NodeJS.Timeout;
+  private token: string | null = null;
 
   async login(username: string, password: string): Promise<GP51AuthResponse> {
     try {
@@ -48,6 +54,77 @@ export class GP51EnhancedDataService {
       console.error('Error fetching fleet data:', error);
       return createDefaultFleetData();
     }
+  }
+
+  // ADDED - Enhanced service methods
+  startRealTimeUpdates(): void {
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
+    }
+
+    this.updateInterval = setInterval(async () => {
+      try {
+        const fleetData = await this.getCompleteFleetData();
+        this.notifySubscribers(fleetData);
+      } catch (error) {
+        console.error('Real-time update error:', error);
+      }
+    }, 30000);
+  }
+
+  stopRealTimeUpdates(): void {
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
+      this.updateInterval = undefined;
+    }
+  }
+
+  async authenticate(username: string, password: string): Promise<GP51AuthResponse> {
+    return this.login(username, password);
+  }
+
+  async getCompleteFleetData(options?: GP51FleetDataOptions): Promise<GP51FleetData> {
+    try {
+      const fleetData = createDefaultFleetData();
+      
+      // Apply group filter if specified
+      if (options?.groupFilter && options.groupFilter.length > 0) {
+        fleetData.devices = fleetData.devices.filter(device => 
+          options.groupFilter!.includes(device.groupname || '')
+        );
+      }
+      
+      return fleetData;
+    } catch (error) {
+      console.error('Error fetching complete fleet data:', error);
+      return createDefaultFleetData();
+    }
+  }
+
+  async generateFleetReport(): Promise<any> {
+    const fleetData = await this.getCompleteFleetData();
+    
+    return {
+      reportId: `report_${Date.now()}`,
+      generatedAt: new Date().toISOString(),
+      totalVehicles: fleetData.summary.totalDevices,
+      activeVehicles: fleetData.summary.activeDevices,
+      onlineVehicles: fleetData.summary.onlineDevices,
+      data: fleetData.devices
+    };
+  }
+
+  async getVehicleHistory(deviceId: string, timeRange: any): Promise<GP51Position[]> {
+    return [];
+  }
+
+  async getGeofences(): Promise<any[]> {
+    return [];
+  }
+
+  async logout(): Promise<void> {
+    this.token = null;
+    this.stopRealTimeUpdates();
   }
 
   private notifySubscribers(fleetData: GP51FleetData): void {

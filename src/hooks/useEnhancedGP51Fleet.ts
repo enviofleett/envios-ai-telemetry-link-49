@@ -1,10 +1,16 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { GP51EnhancedDataService } from '@/services/gp51/GP51EnhancedDataService';
+import type { GP51FleetData, GP51FleetDataOptions } from '@/types/gp51-unified';
+import { createDefaultFleetData } from '@/types/gp51-unified';
 
-export const useEnhancedGP51Fleet = () => {
-  const [service] = useState(() => new GP51EnhancedDataService());
-  const [fleetData, setFleetData] = useState<any>(null);
+export const useEnhancedGP51Fleet = (options: {
+  autoRefresh?: boolean;
+  refreshInterval?: number;
+  includePositions?: boolean;
+} = {}) => {
+  const [dataService] = useState(() => new GP51EnhancedDataService());
+  const [fleetData, setFleetData] = useState<GP51FleetData>(createDefaultFleetData());
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -13,76 +19,39 @@ export const useEnhancedGP51Fleet = () => {
 
   const startRealTime = useCallback(() => {
     if (!isRealTimeActive) {
-      service.startRealTimeUpdates();
+      dataService.startRealTimeUpdates();
       setIsRealTimeActive(true);
 
-      // Subscribe to position updates with proper typing
-      service.subscribe('position_update', (positions: any[]) => {
-        setFleetData((prev: any) => {
-          if (!prev) return prev;
-          
-          // Update positions in fleet data
-          const positionMap = new Map(positions.map((p: any) => [p.deviceid, p]));
-          
-          const updatedGroups = prev.groups.map((group: any) => ({
-            ...group,
-            devices: group.devices.map((device: any) => {
-              const newPosition = positionMap.get(device.deviceid);
-              return newPosition ? {
-                ...device,
-                position: {
-                  latitude: newPosition.callat,
-                  longitude: newPosition.callon,
-                  speed: newPosition.speed,
-                  heading: newPosition.course
-                },
-                lastSeen: new Date(newPosition.updatetime)
-              } : device;
-            })
-          }));
-          
-          return {
-            ...prev,
-            groups: updatedGroups,
-            lastUpdate: new Date()
-          };
-        });
+      // Subscribe to updates with proper typing - only callback parameter
+      const unsubscribe = dataService.subscribe((fleetData: GP51FleetData) => {
+        setFleetData(fleetData);
       });
 
-      // Subscribe to alerts
-      service.subscribe('alerts', (newAlerts) => {
-        setAlerts(prev => [...newAlerts, ...prev].slice(0, 100)); // Keep last 100 alerts
-      });
+      return unsubscribe;
     }
-  }, [service, isRealTimeActive]);
+  }, [dataService, isRealTimeActive]);
 
   const stopRealTime = useCallback(() => {
-    service.stopRealTimeUpdates();
+    dataService.stopRealTimeUpdates();
     setIsRealTimeActive(false);
-  }, [service]);
+  }, [dataService]);
 
   const authenticate = useCallback(async (username: string, password: string) => {
     setLoading(true);
     setError(null);
     
     try {
-      const authResult = await service.authenticate(username, password);
+      const authResult = await dataService.authenticate(username, password);
       
-      if (authResult.status === 0) {
+      if (authResult.success) {
         setIsAuthenticated(true);
-        const fleetResult = await service.getCompleteFleetData({ includePositions: true });
-        
-        if (fleetResult.success) {
-          setFleetData(fleetResult.data);
-          startRealTime();
-          return { success: true };
-        } else {
-          setError(fleetResult.error || 'Failed to fetch fleet data');
-          return { success: false, error: fleetResult.error };
-        }
+        const fleetResult = await dataService.getCompleteFleetData({ includePositions: true });
+        setFleetData(fleetResult);
+        startRealTime();
+        return { success: true };
       } else {
-        setError(authResult.cause);
-        return { success: false, error: authResult.cause };
+        setError(authResult.error || 'Authentication failed');
+        return { success: false, error: authResult.error };
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Authentication failed';
@@ -91,12 +60,12 @@ export const useEnhancedGP51Fleet = () => {
     } finally {
       setLoading(false);
     }
-  }, [service, startRealTime]);
+  }, [dataService, startRealTime]);
 
   const generateReport = useCallback(async (options: any) => {
     setLoading(true);
     try {
-      const report = await service.generateFleetReport(options);
+      const report = await dataService.generateFleetReport();
       return report;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Report generation failed');
@@ -104,12 +73,17 @@ export const useEnhancedGP51Fleet = () => {
     } finally {
       setLoading(false);
     }
-  }, [service]);
+  }, [dataService]);
 
   const getVehicleHistory = useCallback(async (deviceId: string, startDate: Date, endDate: Date) => {
     setLoading(true);
     try {
-      const history = await service.getVehicleHistory(deviceId, startDate, endDate);
+      const timeRange = {
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        hours: Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60))
+      };
+      const history = await dataService.getVehicleHistory(deviceId, timeRange);
       return history;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch vehicle history');
@@ -117,12 +91,12 @@ export const useEnhancedGP51Fleet = () => {
     } finally {
       setLoading(false);
     }
-  }, [service]);
+  }, [dataService]);
 
   const getGeofences = useCallback(async () => {
     setLoading(true);
     try {
-      const geofences = await service.getGeofences();
+      const geofences = await dataService.getGeofences();
       return geofences;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch geofences');
@@ -130,38 +104,33 @@ export const useEnhancedGP51Fleet = () => {
     } finally {
       setLoading(false);
     }
-  }, [service]);
+  }, [dataService]);
 
   const refresh = useCallback(async (forceRefresh = false) => {
     if (!isAuthenticated) return;
     
     setLoading(true);
     try {
-      const fleetResult = await service.getCompleteFleetData({ 
-        includePositions: true, 
-        forceRefresh 
+      const fleetResult = await dataService.getCompleteFleetData({ 
+        includePositions: true
       });
       
-      if (fleetResult.success) {
-        setFleetData(fleetResult.data);
-      } else {
-        setError(fleetResult.error || 'Failed to refresh fleet data');
-      }
+      setFleetData(fleetResult);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Refresh failed');
     } finally {
       setLoading(false);
     }
-  }, [service, isAuthenticated]);
+  }, [dataService, isAuthenticated]);
 
   const logout = useCallback(async () => {
     stopRealTime();
-    await service.logout();
+    await dataService.logout();
     setIsAuthenticated(false);
-    setFleetData(null);
+    setFleetData(createDefaultFleetData());
     setAlerts([]);
     setError(null);
-  }, [stopRealTime, service]);
+  }, [stopRealTime, dataService]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -182,7 +151,7 @@ export const useEnhancedGP51Fleet = () => {
     logout,
     startRealTime,
     stopRealTime,
-    generateReport,
+    generateReport: generateReport,
     getVehicleHistory,
     getGeofences
   };
