@@ -54,8 +54,30 @@ const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) =>
 
       console.log(`🔄 Processing ${devices.length} devices...`);
       
-      // Transform devices to expected format using the utility function
-      const transformedDevices = devices.map(device => convertGP51DeviceToDeviceData(device));
+      // Fix: Ensure all required properties are present
+      const transformedDevices = devices.map(device => ({
+        deviceid: device.deviceid,
+        devicename: device.devicename,
+        devicetype: device.devicetype || 0,
+        isfree: device.isfree,
+        lastactivetime: device.lastactivetime || Date.now(), // Ensure required property
+        lastUpdate: device.lastactivetime ? 
+          new Date(device.lastactivetime).toISOString() : 
+          new Date().toISOString(),
+        simnum: device.simnum,
+        groupid: device.groupid,
+        groupname: device.groupname,
+        status: device.isfree === 1 ? 'active' : 'inactive',
+        online: Boolean(device.lastactivetime && (Date.now() - device.lastactivetime) < 300000),
+        remark: device.remark,
+        creater: device.creater,
+        videochannelcount: device.videochannelcount,
+        allowedit: device.allowedit,
+        icon: device.icon,
+        stared: device.stared,
+        loginame: device.loginame
+      }));
+      
       const result = await syncDevices(transformedDevices);
 
       if (result.success) {

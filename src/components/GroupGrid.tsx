@@ -28,7 +28,6 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
   const formatDate = (dateValue: string | Date | null) => {
     if (!dateValue) return 'Never';
     
-    // Safe date conversion
     const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
     return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleString();
   };
@@ -38,7 +37,9 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
   };
 
   const getGroupId = (group: GP51Group): number => {
-    return group.groupid || group.group_id || group.id || 0;
+    // Fix: Ensure we always return a number
+    const id = group.groupid || group.group_id || group.id || 0;
+    return typeof id === 'string' ? parseInt(id, 10) || 0 : id;
   };
 
   const getDeviceCount = (group: GP51Group): number => {

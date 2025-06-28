@@ -1,4 +1,3 @@
-
 import { supabaseGP51AuthService } from './SupabaseGP51AuthService';
 import { gp51DataService } from './GP51DataService';
 import { GP51HealthService } from './GP51HealthService';
@@ -69,22 +68,15 @@ export class UnifiedGP51Service {
     }
   }
 
-  async getLastPositions(deviceIds?: string[]): Promise<GP51Position[]> {
-    try {
-      if (!this.isAuthenticated) {
-        console.error('❌ Not authenticated with GP51');
-        return [];
-      }
-
-      return await this.dataService.getLastPositions(deviceIds);
-    } catch (error) {
-      console.error('💥 Position fetch error:', error);
-      return [];
-    }
+  async getLastPositions(deviceIds: string[]): Promise<GP51Position[]> {
+    return this.getMultipleDevicesLastPositions(deviceIds);
   }
 
   async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
-    return this.getLastPositions(deviceIds);
+    if (deviceIds && deviceIds.length > 0) {
+      return this.getMultipleDevicesLastPositions(deviceIds);
+    }
+    return [];
   }
 
   async getDevices(deviceIds?: string[]) {

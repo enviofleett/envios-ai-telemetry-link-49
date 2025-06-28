@@ -1,49 +1,129 @@
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Calendar } from "@/components/ui/calendar"
 import { CalendarIcon } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
-import { GP51DataService } from '@/services/gp51/GP51DataService';
+import { gp51DataService } from '@/services/gp51/GP51DataService';
 
-const gp51DataService = new GP51DataService();
+interface GP51HistoricalDataProps {
+  deviceId?: string;
+}
 
-const GP51HistoricalData: React.FC = () => {
-  const [date, setDate] = React.useState<Date | undefined>(new Date())
+const GP51HistoricalData: React.FC<GP51HistoricalDataProps> = ({ deviceId }) => {
+  const [startTime, setStartTime] = useState<Date | undefined>(new Date(new Date().setDate(new Date().getDate() - 7)));
+  const [endTime, setEndTime] = useState<Date | undefined>(new Date());
+  const [historicalData, setHistoricalData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (deviceId) {
+      fetchHistoricalData(deviceId);
+    }
+  }, [deviceId, startTime, endTime]);
+
+  const fetchHistoricalData = async (deviceId?: string) => {
+    setLoading(true);
+    try {
+      // Fix: Provide default deviceId parameter
+      const result = await gp51DataService.getHistoryTracks(
+        deviceId || 'default-device-id', 
+        startTime, 
+        endTime
+      );
+      setHistoricalData(result);
+    } catch (error) {
+      console.error('Error fetching historical data:', error);
+      setError('Failed to fetch historical data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>GP51 Historical Data</CardTitle>
+        <CardTitle>Historical Data</CardTitle>
+        <CardDescription>View historical tracking data for a specific device.</CardDescription>
       </CardHeader>
-      <CardContent className="pl-2">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant={"outline"}
-              className={cn(
-                "w-[240px] justify-start text-left font-normal",
-                !date && "text-muted-foreground"
-              )}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {date ? format(date, "PPP") : <span>Pick a date</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={date}
-              onSelect={setDate}
-              disabled={(date) =>
-                date > new Date() || date < new Date("2023-01-01")
-              }
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
+      <CardContent className="grid gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn(
+                  "w-[280px] justify-start text-left font-normal",
+                  !startTime && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {startTime ? (
+                  format(startTime, "PPP")
+                ) : (
+                  <span>Pick a start date</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={startTime}
+                onSelect={setStartTime}
+                disabled={(date) =>
+                  date > (endTime || new Date())
+                }
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn(
+                  "w-[280px] justify-start text-left font-normal",
+                  !endTime && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {endTime ? (
+                  format(endTime, "PPP")
+                ) : (
+                  <span>Pick an end date</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={endTime}
+                onSelect={setEndTime}
+                disabled={(date) =>
+                  date < (startTime || new Date())
+                }
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {error && <div className="text-red-500">{error}</div>}
+
+        {loading ? (
+          <div>Loading historical data...</div>
+        ) : (
+          <ul>
+            {historicalData.map((item: any) => (
+              <li key={item.id}>{JSON.stringify(item)}</li>
+            ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   );

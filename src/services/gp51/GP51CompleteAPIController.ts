@@ -1,4 +1,3 @@
-
 import type { 
   GP51HealthStatus,
   GP51Device,
@@ -91,7 +90,6 @@ export class GP51CompleteAPIController {
         };
       }
 
-      // Fix: Convert number array to string array for groupFilter
       let filteredDevices = devicesResult.data || [];
       if (options?.groupFilter) {
         const groupFilterStrings = options.groupFilter.map(id => 
@@ -115,7 +113,6 @@ export class GP51CompleteAPIController {
           responseTime: Date.now() - startTime,
           dataVersion: "1.0",
           source: "GP51API",
-          options,
           fetchTime: new Date()
         }
       };
