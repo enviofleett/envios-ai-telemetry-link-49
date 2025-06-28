@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -14,6 +13,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useProductionGP51Service } from '@/hooks/useProductionGP51Service';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
 import type { GP51DeviceData, GP51Device } from '@/types/gp51-unified';
+import { convertGP51DeviceToDeviceData } from '@/types/gp51-unified';
 
 interface GP51ImportModalProps {
   isOpen: boolean;
@@ -54,8 +54,8 @@ const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) =>
 
       console.log(`🔄 Processing ${devices.length} devices...`);
       
-      // Transform devices to expected format
-      const transformedDevices = devices.map(transformDeviceData);
+      // Transform devices to expected format using the utility function
+      const transformedDevices = devices.map(device => convertGP51DeviceToDeviceData(device));
       const result = await syncDevices(transformedDevices);
 
       if (result.success) {

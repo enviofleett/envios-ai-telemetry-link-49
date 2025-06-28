@@ -1,44 +1,80 @@
-
-import { GP51TypeMapper } from './GP51TypeMapper';
-import { buildGP51ApiUrl, GP51_ACTIONS } from './urlHelpers';
-import type { GP51Device, GP51Position, GP51Group, GP51HealthStatus, GP51PerformanceMetrics } from '@/types/gp51-unified';
+import axios from 'axios';
+import MD5 from 'crypto-js/md5';
+import { cache } from '@/cache';
+import type { 
+  GP51HealthStatus, 
+  GP51PerformanceMetrics,
+  GP51Device, 
+  GP51Position, 
+  GP51Group 
+} from '@/types/gp51-unified';
+import { createDefaultPerformanceMetrics, safeToString } from '@/types/gp51-unified';
 
 export class GP51DataService {
-  private token: string | null = null;
-  private deviceCache: Map<string, GP51Device> = new Map();
-  private positionCache: Map<string, GP51Position> = new Map();
-  private cacheTimestamp: number = 0;
-  private readonly CACHE_TTL = 30000; // 30 seconds
+  private baseURL: string;
+  private apiKey: string;
+  private apiSecret: string;
+  private loginName: string;
+  private loginPass: string;
 
-  setToken(token: string): void {
-    this.token = token;
+  constructor(baseURL: string) {
+    this.baseURL = baseURL;
+    this.apiKey = process.env.GP51_API_KEY || '';
+    this.apiSecret = process.env.GP51_API_SECRET || '';
+    this.loginName = process.env.GP51_LOGIN_NAME || '';
+    this.loginPass = process.env.GP51_LOGIN_PASS || '';
   }
 
-  getToken(): string | null {
-    return this.token;
+  private async callAPI(method: string, params: any): Promise<any> {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signSource = `${this.apiKey}${timestamp}${this.apiSecret}`;
+    const sign = MD5(signSource).toString();
+
+    const url = `${this.baseURL}/api/${method}`;
+    const data = {
+      apikey: this.apiKey,
+      timestamp: timestamp,
+      sign: sign,
+      ...params,
+    };
+
+    try {
+      const response = await axios.post(url, data);
+      return response.data;
+    } catch (error: any) {
+      console.error(`GP51 API error calling ${method}:`, error.message);
+      throw error;
+    }
   }
 
-  clearCache(): void {
-    this.deviceCache.clear();
-    this.positionCache.clear();
-    this.cacheTimestamp = 0;
+  async testConnection(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await this.callAPI('device/queryMonitorList', {
+        loginname: this.loginName,
+        loginpass: this.loginPass,
+        pageindex: 1,
+        pagesize: 1,
+      });
+
+      if (response && response.status === 0) {
+        return { success: true };
+      } else {
+        return { success: false, error: response?.cause || 'Connection failed' };
+      }
+    } catch (error: any) {
+      console.error('GP51 Connection Test Error:', error.message);
+      return { success: false, error: error.message };
+    }
   }
 
   async getHealthStatus(): Promise<GP51HealthStatus> {
     try {
       const testResult = await this.testConnection();
       return {
-        status: testResult.success ? 'connected' : 'disconnected',
-        isHealthy: testResult.success,
-        connectionStatus: testResult.success ? 'connected' : 'disconnected',
+        status: testResult.success ? 'connected' : 'disconnected', // Fixed: removed 'error' 
+        lastCheck: new Date().toISOString(),
         isConnected: testResult.success,
-        lastPingTime: new Date(),
-        responseTime: 150,
-        tokenValid: Boolean(this.token),
-        sessionValid: Boolean(this.token),
-        activeDevices: 0,
-        errorMessage: testResult.error,
-        lastCheck: new Date(),
+        lastPingTime: new Date().toISOString(),
         connectionQuality: testResult.success ? 'excellent' : 'poor',
         errorCount: testResult.success ? 0 : 1,
         lastError: testResult.error,
@@ -48,17 +84,10 @@ export class GP51DataService {
       };
     } catch (error) {
       return {
-        status: 'error',
-        isHealthy: false,
-        connectionStatus: 'error',
+        status: 'disconnected', // Fixed: use valid union member
+        lastCheck: new Date().toISOString(),
         isConnected: false,
-        lastPingTime: new Date(),
-        responseTime: 0,
-        tokenValid: false,
-        sessionValid: false,
-        activeDevices: 0,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        lastCheck: new Date(),
+        lastPingTime: new Date().toISOString(),
         connectionQuality: 'poor',
         errorCount: 1,
         lastError: error instanceof Error ? error.message : 'Unknown error',
@@ -70,33 +99,24 @@ export class GP51DataService {
   }
 
   async getPerformanceMetrics(): Promise<GP51PerformanceMetrics> {
-    return {
-      responseTime: 150,
-      successRate: 95,
-      requestsPerMinute: 10,
-      errorRate: 5,
-      lastUpdate: new Date(),
-      uptime: 99.9,
-      averageResponseTime: 150,
-      dataQuality: 95,
-      onlinePercentage: 85,
-      totalVehicles: 0,
-      activeVehicles: 0,
-      activeDevices: 0,
-      utilizationRate: 85,
-      deviceCount: 0,
-      movingVehicles: 0,
-      lastUpdateTime: new Date()
-    };
-  }
+    try {
+      const startTime = Date.now();
+      const testResult = await this.testConnection();
+      const responseTime = Date.now() - startTime;
 
-  async getLiveVehicles(): Promise<{
-    success: boolean;
-    data?: GP51Device[];
-    groups?: GP51Group[];
-    error?: string;
-  }> {
-    return this.queryMonitorList();
+      // Use the default metrics as base and override specific values
+      const metrics = createDefaultPerformanceMetrics();
+      return {
+        ...metrics,
+        responseTime,
+        success: testResult.success,
+        averageResponseTime: responseTime, // Now valid with updated interface
+        timestamp: new Date().toISOString(),
+        lastUpdate: new Date().toISOString()
+      };
+    } catch (error) {
+      return createDefaultPerformanceMetrics();
+    }
   }
 
   async queryMonitorList(): Promise<{
@@ -106,156 +126,111 @@ export class GP51DataService {
     error?: string;
   }> {
     try {
-      if (!this.token) {
-        return {
-          success: false,
-          error: 'No authentication token available'
-        };
+      const cacheKey = 'queryMonitorList';
+      const cachedData = cache.get(cacheKey);
+
+      if (cachedData) {
+        console.log('✅ Returning cached monitor list');
+        return cachedData;
       }
 
-      const url = buildGP51ApiUrl(GP51_ACTIONS.DEVICE_TREE, this.token);
-      const response = await this.makeApiCall(url, {});
-
-      if (response.status !== 0) {
-        return {
-          success: false,
-          error: response.cause || 'Failed to fetch monitor list'
-        };
-      }
-
-      const devices: GP51Device[] = [];
-      const groups: GP51Group[] = [];
-
-      if (response.groups && Array.isArray(response.groups)) {
-        response.groups.forEach((group: any) => {
-          const mappedGroup = GP51TypeMapper.mapApiGroupToUnified({
-            ...group,
-            parentgroupid: group.parentgroupid || ''
-          });
-          groups.push(mappedGroup);
-
-          if (group.devices && Array.isArray(group.devices)) {
-            group.devices.forEach((device: any) => {
-              const mappedDevice = GP51TypeMapper.mapApiDeviceToUnified({
-                ...device,
-                groupname: group.groupname || ''
-              });
-              devices.push(mappedDevice);
-            });
-          }
-        });
-      }
-
-      // Update cache
-      devices.forEach(device => {
-        this.deviceCache.set(device.deviceid, device);
+      const response = await this.callAPI('device/queryMonitorList', {
+        loginname: this.loginName,
+        loginpass: this.loginPass,
+        pageindex: 1,
+        pagesize: 1000,
       });
-      this.cacheTimestamp = Date.now();
 
-      return {
-        success: true,
-        data: devices,
-        groups: groups
-      };
-    } catch (error) {
-      console.error('💥 Monitor list query failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to query monitor list'
-      };
+      if (response && response.status === 0) {
+        const result = {
+          success: true,
+          data: response.data,
+          groups: response.groups,
+        };
+        cache.set(cacheKey, result, 300); // Cache for 5 minutes
+        return result;
+      } else {
+        return { success: false, error: response?.cause || 'Failed to query monitor list' };
+      }
+    } catch (error: any) {
+      console.error('💥 Query monitor list failed:', error.message);
+      return { success: false, error: error.message };
     }
   }
 
   async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     try {
-      if (!this.token) {
-        console.error('❌ No authentication token');
+      if (!deviceIds || deviceIds.length === 0) {
         return [];
       }
 
-      const url = buildGP51ApiUrl(GP51_ACTIONS.POSITIONS, this.token);
-      const response = await this.makeApiCall(url, {
-        deviceids: deviceIds || [],
-        lastquerypositiontime: 0
+      const response = await this.callAPI('device/getLastPosition', {
+        loginname: this.loginName,
+        loginpass: this.loginPass,
+        deviceids: deviceIds.join(','),
       });
 
-      if (response.status !== 0) {
-        console.error('❌ Position query failed:', response.cause);
+      if (response && response.status === 0) {
+        return response.data || [];
+      } else {
+        console.warn('Failed to get positions:', response?.cause);
         return [];
       }
-
-      const positions: GP51Position[] = [];
-
-      if (response.records && Array.isArray(response.records)) {
-        response.records.forEach((record: any) => {
-          const mappedPosition = GP51TypeMapper.mapApiPositionToUnified({
-            ...record,
-            servertime: record.servertime || new Date().toISOString(),
-            battery: record.battery || record.voltagepercent || 0,
-            signal: record.signal || record.rxlevel || 0,
-            satellites: record.satellites || record.gpsvalidnum || 0
-          });
-          positions.push(mappedPosition);
-          this.positionCache.set(mappedPosition.deviceid, mappedPosition);
-        });
-      }
-
-      return positions;
-    } catch (error) {
-      console.error('💥 Position fetch error:', error);
+    } catch (error: any) {
+      console.error('💥 Position fetch error:', error.message);
       return [];
     }
   }
 
-  async getLastPositions(deviceIds?: string[]): Promise<GP51Position[]> {
-    return this.getPositions(deviceIds);
-  }
-
   async getMultipleDevicesLastPositions(deviceIds: string[]): Promise<GP51Position[]> {
-    return this.getPositions(deviceIds);
-  }
-
-  async testConnection(): Promise<{ success: boolean; error?: string }> {
     try {
-      if (!this.token) {
-        return {
-          success: false,
-          error: 'No authentication token'
-        };
+      if (!deviceIds || deviceIds.length === 0) {
+        return [];
       }
 
-      const url = buildGP51ApiUrl(GP51_ACTIONS.DEVICE_TREE, this.token);
-      const response = await this.makeApiCall(url, {});
+      const response = await this.callAPI('device/getLastPosition', {
+        loginname: this.loginName,
+        loginpass: this.loginPass,
+        deviceids: deviceIds.join(','),
+      });
 
-      return {
-        success: response.status === 0,
-        error: response.status !== 0 ? response.cause || 'Connection test failed' : undefined
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Connection test failed'
-      };
+      if (response && response.status === 0) {
+        return response.data || [];
+      } else {
+        console.warn('Failed to get positions:', response?.cause);
+        return [];
+      }
+    } catch (error: any) {
+      console.error('💥 Position fetch error:', error.message);
+      return [];
     }
   }
 
-  private async makeApiCall(url: string, body: any): Promise<any> {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(body)
-    });
+  async getLiveVehicles(): Promise<any> {
+    try {
+      const response = await this.callAPI('device/queryMonitorList', {
+        loginname: this.loginName,
+        loginpass: this.loginPass,
+        pageindex: 1,
+        pagesize: 1000,
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      return response;
+    } catch (error: any) {
+      console.error('Error fetching live vehicles:', error);
+      throw error;
     }
+  }
 
-    const data = await response.json();
-    return data;
+  clearCache(): void {
+    cache.flushAll();
+  }
+
+  private handleNeverType(value: never): string {
+    return safeToString(value); // Use utility function
   }
 }
 
-export const gp51DataService = new GP51DataService();
+export const gp51DataService = new GP51DataService(
+  process.env.GP51_BASE_URL || 'http://localhost:8080'
+);

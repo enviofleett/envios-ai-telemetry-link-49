@@ -1,17 +1,23 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
 import type { GP51ProcessedPosition, GP51Position } from '@/types/gp51-unified';
 import { GP51PropertyMapper } from '@/types/gp51-unified';
 
 export class GP51VehiclePersistenceService {
+  private static _instance: GP51VehiclePersistenceService;
   private positions: GP51Position[] = [];
 
   private constructor() {}
 
-  static getInstance(): GP51VehiclePersistenceService {
-    if (!GP51VehiclePersistenceService.instance) {
-      GP51VehiclePersistenceService.instance = new GP51VehiclePersistenceService();
+  static get instance(): GP51VehiclePersistenceService {
+    if (!GP51VehiclePersistenceService._instance) {
+      GP51VehiclePersistenceService._instance = new GP51VehiclePersistenceService();
     }
+    return GP51VehiclePersistenceService._instance;
+  }
+
+  static getInstance(): GP51VehiclePersistenceService {
     return GP51VehiclePersistenceService.instance;
   }
 
@@ -26,7 +32,7 @@ export class GP51VehiclePersistenceService {
 
       const vehicleData = {
         gp51_device_id: deviceId,
-        name: position.deviceName || deviceId,
+        name: position.deviceName || position.deviceid || deviceId,
         user_id: user.id,
         sim_number: null,
       };
@@ -57,8 +63,8 @@ export class GP51VehiclePersistenceService {
       }
 
       const vehicleData = positions.map(position => ({
-        gp51_device_id: position.deviceId,
-        name: position.deviceName || position.deviceId,
+        gp51_device_id: position.deviceId || position.deviceid,
+        name: position.deviceName || position.deviceid,
         user_id: user.id,
         sim_number: null,
       }));
@@ -83,16 +89,16 @@ export class GP51VehiclePersistenceService {
     try {
       console.log(`Fetching data and persisting for device ${deviceId}...`);
       const positions = await gp51DataService.getMultipleDevicesLastPositions([deviceId]);
-      const position = positions.get(deviceId);
+      const position = positions.find(p => p.deviceid === deviceId);
 
       if (!position) {
         throw new Error(`No position data found for device ${deviceId}`);
       }
 
       const processedPosition = GP51PropertyMapper.mapPosition(position);
-      processedPosition.deviceName = deviceId;
+      const enhancedPosition = GP51PropertyMapper.enhancePosition(processedPosition);
 
-      await this.persistVehicleData(deviceId, processedPosition);
+      await this.persistVehicleData(deviceId, enhancedPosition);
       console.log(`Data fetched and persisted successfully for device ${deviceId}`);
     } catch (error) {
       console.error(`Error fetching data and persisting for device ${deviceId}:`, error);
@@ -138,4 +144,4 @@ export class GP51VehiclePersistenceService {
   }
 }
 
-export const gp51VehiclePersistenceService = new GP51VehiclePersistenceService();
+export const gp51VehiclePersistenceService = GP51VehiclePersistenceService.getInstance();

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -93,3 +92,6 @@ const FleetDashboard: React.FC<FleetDashboardProps> = ({
 };
 
 export default FleetDashboard;
+
+// Add named export for compatibility
+export { FleetDashboard };

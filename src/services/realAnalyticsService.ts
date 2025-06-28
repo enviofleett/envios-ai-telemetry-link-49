@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { RealAnalyticsData } from '@/types/gp51-unified';
 import { unifiedGP51Service } from '@/services/gp51/UnifiedGP51Service';
@@ -98,8 +97,8 @@ class RealAnalyticsService {
         performance: {
           averageSpeed: 45.2,
           totalDistance: 12750,
-          fuelEfficiency: 15.8,
-          alertCount: 2
+          alertCount: 2,
+          fuelEfficiency: 15.8
         },
         growth: {
           newUsers,
@@ -143,7 +142,12 @@ class RealAnalyticsService {
         vehicleStatus: { total: 0, online: 0, offline: 0, moving: 0, parked: 0 },
         fleetUtilization: { activeVehicles: 0, totalVehicles: 0, utilizationRate: 0 },
         systemHealth: { apiStatus: 'down', lastUpdate: new Date(), responseTime: 0 },
-        performance: { averageSpeed: 0, totalDistance: 0, alertCount: 1 },
+        performance: { 
+          averageSpeed: 0, 
+          totalDistance: 0, 
+          alertCount: 1,
+          fuelEfficiency: 0
+        },
         growth: { newUsers: 0, newVehicles: 0, period: 'This month', percentageChange: 0 },
         sync: { importedUsers: 0, importedVehicles: 0, lastSync: new Date(), status: 'error' }
       };
