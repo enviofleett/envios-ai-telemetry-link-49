@@ -1,229 +1,211 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Shield, Clock, Activity, RefreshCw } from 'lucide-react';
-import { GPS51SecurityService } from '@/services/gp51/GPS51SecurityService';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { 
+  Shield, 
+  Clock, 
+  AlertTriangle, 
+  Users, 
+  Activity,
+  RefreshCw,
+  Lock,
+  Unlock
+} from 'lucide-react';
+import { useGPS51Integration } from '@/hooks/useGPS51Integration';
 
 const GPS51SecurityDashboard: React.FC = () => {
-  const [securityStats, setSecurityStats] = useState<any>(null);
-  const [securityEvents, setSecurityEvents] = useState<any[]>([]);
-
-  const refreshData = () => {
-    const stats = GPS51SecurityService.getSecurityStats();
-    const events = GPS51SecurityService.getSecurityEvents(50);
-    
-    setSecurityStats(stats);
-    setSecurityEvents(events);
-  };
+  const { securityStats, refreshSecurityStats } = useGPS51Integration();
 
   useEffect(() => {
-    refreshData();
+    // Refresh security stats on component mount
+    refreshSecurityStats();
     
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(refreshData, 30000);
+    // Set up periodic refresh every 30 seconds
+    const interval = setInterval(refreshSecurityStats, 30000);
+    
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshSecurityStats]);
 
-  const formatEventType = (type: string) => {
-    return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  };
-
-  const getEventBadgeVariant = (type: string) => {
-    switch (type) {
-      case 'login_attempt': return 'default';
-      case 'login_failed': return 'destructive';
-      case 'account_locked': return 'destructive';
-      case 'rate_limit_exceeded': return 'destructive';
-      default: return 'secondary';
+  const getSecurityLevel = () => {
+    if (!securityStats) return { level: 'Unknown', color: 'text-gray-400', bgColor: 'bg-gray-900/20', borderColor: 'border-gray-700' };
+    
+    const { recentFailedAttempts, lockedAccounts, rateLimitExceeded } = securityStats;
+    
+    if (lockedAccounts > 0 || rateLimitExceeded > 5) {
+      return { level: 'High Risk', color: 'text-red-400', bgColor: 'bg-red-900/20', borderColor: 'border-red-700' };
+    } else if (recentFailedAttempts > 10 || rateLimitExceeded > 0) {
+      return { level: 'Medium Risk', color: 'text-yellow-400', bgColor: 'bg-yellow-900/20', borderColor: 'border-yellow-700' };
+    } else {
+      return { level: 'Low Risk', color: 'text-green-400', bgColor: 'bg-green-900/20', borderColor: 'border-green-700' };
     }
   };
 
-  const getEventIcon = (type: string) => {
-    switch (type) {
-      case 'login_attempt': return '✅';
-      case 'login_failed': return '❌';
-      case 'account_locked': return '🔒';
-      case 'rate_limit_exceeded': return '⚡';
-      default: return '📋';
-    }
-  };
+  const securityLevel = getSecurityLevel();
 
   return (
-    <div className="space-y-6">
-      {/* Security Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gray-800 border-gray-700">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400">Failed Attempts</p>
-                <p className="text-2xl font-bold text-white">
-                  {securityStats?.recentFailedAttempts || 0}
-                </p>
-                <p className="text-xs text-gray-500">Last hour</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-red-400" />
+    <Card className="bg-gray-800 border-gray-700">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between text-white">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-blue-400" />
+            Security Dashboard
+          </div>
+          <Button
+            onClick={refreshSecurityStats}
+            variant="ghost"
+            size="sm"
+            className="text-gray-400 hover:text-gray-300"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Security Level Alert */}
+        <Alert className={`${securityLevel.bgColor} ${securityLevel.borderColor}`}>
+          <Shield className={`h-4 w-4 ${securityLevel.color}`} />
+          <AlertDescription className={securityLevel.color}>
+            <strong>Security Level: {securityLevel.level}</strong>
+            <div className="text-sm mt-1">
+              {securityLevel.level === 'High Risk' && "Multiple security events detected. Review failed attempts and locked accounts."}
+              {securityLevel.level === 'Medium Risk' && "Some security events detected. Monitor authentication attempts."}
+              {securityLevel.level === 'Low Risk' && "Security status normal. No immediate threats detected."}
             </div>
-          </CardContent>
-        </Card>
+          </AlertDescription>
+        </Alert>
 
-        <Card className="bg-gray-800 border-gray-700">
-          <CardContent className="p-4">
+        {/* Security Metrics */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400">Rate Limited</p>
-                <p className="text-2xl font-bold text-white">
-                  {securityStats?.rateLimitExceeded || 0}
-                </p>
-                <p className="text-xs text-gray-500">Last hour</p>
-              </div>
-              <Clock className="h-8 w-8 text-yellow-400" />
+              <span className="text-gray-400 text-sm">Failed Attempts (1h):</span>
+              <Badge variant={securityStats?.recentFailedAttempts > 5 ? "destructive" : "default"}>
+                {securityStats?.recentFailedAttempts || 0}
+              </Badge>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gray-800 border-gray-700">
-          <CardContent className="p-4">
+            
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400">Locked Accounts</p>
-                <p className="text-2xl font-bold text-white">
+              <span className="text-gray-400 text-sm">Rate Limit Exceeded:</span>
+              <Badge variant={securityStats?.rateLimitExceeded > 0 ? "destructive" : "default"}>
+                {securityStats?.rateLimitExceeded || 0}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400 text-sm">Locked Accounts:</span>
+              <div className="flex items-center gap-1">
+                {securityStats?.lockedAccounts > 0 ? (
+                  <Lock className="h-3 w-3 text-red-400" />
+                ) : (
+                  <Unlock className="h-3 w-3 text-green-400" />
+                )}
+                <Badge variant={securityStats?.lockedAccounts > 0 ? "destructive" : "default"}>
                   {securityStats?.lockedAccounts || 0}
-                </p>
-                <p className="text-xs text-gray-500">Currently</p>
+                </Badge>
               </div>
-              <Shield className="h-8 w-8 text-red-400" />
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gray-800 border-gray-700">
-          <CardContent className="p-4">
+            
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400">Total Events</p>
-                <p className="text-2xl font-bold text-white">
-                  {securityStats?.totalEvents || 0}
-                </p>
-                <p className="text-xs text-gray-500">All time</p>
-              </div>
-              <Activity className="h-8 w-8 text-blue-400" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Security Events Log */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-white flex items-center gap-2">
-              <Shield className="h-5 w-5 text-blue-400" />
-              Security Events Log
-            </CardTitle>
-            <Button
-              onClick={refreshData}
-              variant="outline"
-              size="sm"
-              className="border-gray-600 text-gray-300 hover:bg-gray-700"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {securityEvents.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
-              <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No security events recorded yet</p>
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {securityEvents.map((event, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-3 bg-gray-700 rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">{getEventIcon(event.type)}</span>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-white">
-                          {formatEventType(event.type)}
-                        </span>
-                        <Badge variant={getEventBadgeVariant(event.type)} className="text-xs">
-                          {event.identifier}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-gray-400">
-                        {event.timestamp.toLocaleString()}
-                      </div>
-                      {event.details && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          {typeof event.details === 'object' 
-                            ? JSON.stringify(event.details)
-                            : String(event.details)
-                          }
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Security Configuration */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-white">Security Configuration</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <h4 className="font-medium text-white">Rate Limiting</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Max Attempts:</span>
-                  <span className="text-white">5</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Time Window:</span>
-                  <span className="text-white">15 minutes</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Account Lockout:</span>
-                  <span className="text-green-400">Enabled</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h4 className="font-medium text-white">Password Security</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Hash Algorithm:</span>
-                  <span className="text-white">MD5</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Input Validation:</span>
-                  <span className="text-green-400">Enabled</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">SQL Injection Protection:</span>
-                  <span className="text-green-400">Enabled</span>
-                </div>
-              </div>
+              <span className="text-gray-400 text-sm">Total Events:</span>
+              <Badge variant="outline" className="border-gray-600 text-gray-300">
+                {securityStats?.totalEvents || 0}
+              </Badge>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+
+        {/* Rate Limiting Configuration */}
+        <div className="space-y-3">
+          <h4 className="font-medium text-white flex items-center gap-2">
+            <Clock className="h-4 w-4 text-blue-400" />
+            Rate Limiting
+          </h4>
+          <div className="p-3 bg-gray-700 rounded-lg space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">Max Attempts:</span>
+              <span className="text-white">5 per 15 minutes</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">Lockout Duration:</span>
+              <span className="text-white">15 minutes</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">Reset Window:</span>
+              <span className="text-white">15 minutes</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Security Features */}
+        <div className="space-y-3">
+          <h4 className="font-medium text-white flex items-center gap-2">
+            <Activity className="h-4 w-4 text-blue-400" />
+            Active Security Features
+          </h4>
+          <div className="grid grid-cols-1 gap-2">
+            <div className="flex items-center justify-between p-2 bg-gray-700 rounded">
+              <span className="text-sm text-gray-300">Input Validation</span>
+              <Badge variant="default" className="bg-green-600">
+                <Shield className="h-3 w-3 mr-1" />
+                Active
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between p-2 bg-gray-700 rounded">
+              <span className="text-sm text-gray-300">Rate Limiting</span>
+              <Badge variant="default" className="bg-green-600">
+                <Clock className="h-3 w-3 mr-1" />
+                Active
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between p-2 bg-gray-700 rounded">
+              <span className="text-sm text-gray-300">Account Lockout</span>
+              <Badge variant="default" className="bg-green-600">
+                <Lock className="h-3 w-3 mr-1" />
+                Active
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between p-2 bg-gray-700 rounded">
+              <span className="text-sm text-gray-300">Secure Hashing</span>
+              <Badge variant="default" className="bg-green-600">
+                <Shield className="h-3 w-3 mr-1" />
+                Active
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        {/* Last Activity */}
+        {securityStats?.lastEventTime && (
+          <div className="pt-3 border-t border-gray-700">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-400">Last Security Event:</span>
+              <span className="text-gray-300">
+                {new Date(securityStats.lastEventTime).toLocaleString()}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Security Recommendations */}
+        <Alert className="bg-blue-900/20 border-blue-700">
+          <AlertTriangle className="h-4 w-4 text-blue-400" />
+          <AlertDescription className="text-blue-400">
+            <strong>Security Best Practices:</strong>
+            <ul className="text-xs mt-1 space-y-1">
+              <li>• Monitor failed authentication attempts regularly</li>
+              <li>• Review locked accounts and investigate suspicious activity</li>
+              <li>• Use strong, unique passwords for GPS51 accounts</li>
+              <li>• Enable additional security measures if available</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
+      </CardContent>
+    </Card>
   );
 };
 

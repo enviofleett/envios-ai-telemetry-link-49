@@ -1,5 +1,5 @@
 
-import { createHash } from 'crypto';
+import CryptoJS from 'crypto-js';
 
 export interface PasswordHashResult {
   hash: string;
@@ -34,11 +34,10 @@ export class GPS51PasswordService {
       // Ensure clean string input with UTF-8 encoding
       const cleanPassword = String(password).trim();
       
-      // Create MD5 hash exactly as GPS51 expects
-      const hash = createHash('md5')
-        .update(cleanPassword, 'utf8')  // Use UTF-8 encoding explicitly
-        .digest('hex')                  // Get hexadecimal representation
-        .toLowerCase();                 // Convert to lowercase (required by GPS51)
+      // Create MD5 hash using crypto-js for browser compatibility
+      const hash = CryptoJS.MD5(cleanPassword)
+        .toString(CryptoJS.enc.Hex)
+        .toLowerCase();
       
       // Validate hash format
       if (hash.length !== this.MD5_LENGTH) {
