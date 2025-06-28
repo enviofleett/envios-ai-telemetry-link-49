@@ -9,12 +9,26 @@ export interface UseGPS51IntegrationReturn {
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   clearError: () => void;
+  testConnection: () => Promise<boolean>;
+  securityStats: {
+    totalConnections: number;
+    failedAttempts: number;
+    lastSuccessfulConnection: Date | null;
+    securityLevel: 'high' | 'medium' | 'low';
+  };
+  refreshSecurityStats: () => Promise<void>;
 }
 
 export function useGPS51Integration(): UseGPS51IntegrationReturn {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [securityStats, setSecurityStats] = useState({
+    totalConnections: 0,
+    failedAttempts: 0,
+    lastSuccessfulConnection: null as Date | null,
+    securityLevel: 'medium' as 'high' | 'medium' | 'low'
+  });
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
@@ -26,10 +40,21 @@ export function useGPS51Integration(): UseGPS51IntegrationReturn {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       setIsAuthenticated(true);
+      setSecurityStats(prev => ({
+        ...prev,
+        totalConnections: prev.totalConnections + 1,
+        lastSuccessfulConnection: new Date(),
+        securityLevel: 'high'
+      }));
       return true;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Authentication failed';
       setError(errorMsg);
+      setSecurityStats(prev => ({
+        ...prev,
+        failedAttempts: prev.failedAttempts + 1,
+        securityLevel: prev.failedAttempts > 3 ? 'low' : 'medium'
+      }));
       return false;
     } finally {
       setIsLoading(false);
@@ -45,12 +70,57 @@ export function useGPS51Integration(): UseGPS51IntegrationReturn {
     setError(null);
   }, []);
 
+  const testConnection = useCallback(async (): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // TODO: Implement actual connection test
+      // For now, simulate connection test
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Simulate successful connection test
+      return true;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Connection test failed';
+      setError(errorMsg);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const refreshSecurityStats = useCallback(async (): Promise<void> => {
+    try {
+      setIsLoading(true);
+      
+      // TODO: Implement actual security stats fetching
+      // For now, simulate stats refresh
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setSecurityStats(prev => ({
+        ...prev,
+        totalConnections: Math.floor(Math.random() * 100) + prev.totalConnections,
+        failedAttempts: Math.floor(Math.random() * 10),
+        securityLevel: Math.random() > 0.5 ? 'high' : 'medium'
+      }));
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to refresh security stats';
+      setError(errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return {
     isAuthenticated,
     isLoading,
     error,
     login,
     logout,
-    clearError
+    clearError,
+    testConnection,
+    securityStats,
+    refreshSecurityStats
   };
 }
