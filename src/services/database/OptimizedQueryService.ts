@@ -104,7 +104,7 @@ export class OptimizedQueryService {
     }, { cacheTTL: 30 * 1000 }); // Cache for 30 seconds
   }
 
-  async getFleetStatistics(): Promise<Record<string, any>> {
+  async getFleetStatistics(): Promise<{ [key: string]: any }> {
     const queryKey = 'fleet:statistics';
     
     return this.executeQuery(queryKey, async () => {
