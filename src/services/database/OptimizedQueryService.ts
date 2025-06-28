@@ -35,7 +35,7 @@ export class OptimizedQueryService {
     return OptimizedQueryService.instance;
   }
 
-  async executeQuery<T = any>(
+  async executeQuery<T>(
     queryKey: string,
     queryFn: () => Promise<T>,
     options: QueryOptions = {}
@@ -104,7 +104,12 @@ export class OptimizedQueryService {
     }, { cacheTTL: 30 * 1000 }); // Cache for 30 seconds
   }
 
-  async getFleetStatistics(): Promise<any> {
+  async getFleetStatistics(): Promise<{
+    totalVehicles: number;
+    activeVehicles: number;
+    inactiveVehicles: number;
+    lastUpdated: string;
+  }> {
     const queryKey = 'fleet:statistics';
     
     return this.executeQuery(queryKey, async () => {
@@ -153,14 +158,10 @@ export class OptimizedQueryService {
       }
     }
 
-    // Update cache hit rate - simplified to avoid type recursion
-    try {
-      const cacheStats = databaseCacheManager.getStats();
-      this.performanceMetrics.cacheHitRate = cacheStats?.hitRate || 0;
-    } catch (error) {
-      // Fallback if cache stats cause issues
-      this.performanceMetrics.cacheHitRate = 0;
-    }
+    // Update cache hit rate with simple calculation
+    const hitCount = Math.floor(this.performanceMetrics.totalQueries * (this.performanceMetrics.cacheHitRate / 100));
+    const newHitCount = cacheHit ? hitCount + 1 : hitCount;
+    this.performanceMetrics.cacheHitRate = (newHitCount / this.performanceMetrics.totalQueries) * 100;
   }
 
   getPerformanceMetrics(): QueryPerformanceMetrics {
