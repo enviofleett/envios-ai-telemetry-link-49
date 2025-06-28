@@ -1,317 +1,134 @@
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { gps51SessionManager } from '@/services/gps51/GPS51SessionManager';
 
-export interface UseGPS51IntegrationReturn {
+export interface GPS51AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  clearError: () => void;
-  testConnection: () => Promise<boolean>;
-  securityStats: {
-    totalConnections: number;
-    failedAttempts: number;
-    lastSuccessfulConnection: Date | null;
-    securityLevel: 'high' | 'medium' | 'low';
-    recentFailedAttempts: number;
-    lockedAccounts: number;
-    rateLimitExceeded: number;
-    totalEvents: number;
-    lastEventTime: Date | null;
-  };
-  refreshSecurityStats: () => Promise<void>;
+  username?: string;
+  sessionData?: any;
 }
 
-const GPS51_AUTH_KEY = 'gps51_auth_state';
-
-interface GPS51AuthState {
-  isAuthenticated: boolean;
-  username: string | null;
-  sessionId: string | null;
-  expiresAt: string | null;
-  lastActivity: string;
-}
-
-export function useGPS51Integration(): UseGPS51IntegrationReturn {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
-  const { toast } = useToast();
-  
-  const [securityStats, setSecurityStats] = useState({
-    totalConnections: 0,
-    failedAttempts: 0,
-    lastSuccessfulConnection: null as Date | null,
-    securityLevel: 'medium' as 'high' | 'medium' | 'low',
-    recentFailedAttempts: 0,
-    lockedAccounts: 0,
-    rateLimitExceeded: 0,
-    totalEvents: 0,
-    lastEventTime: null as Date | null
+export const useGPS51Integration = () => {
+  const [authState, setAuthState] = useState<GPS51AuthState>({
+    isAuthenticated: false,
+    isLoading: true,
+    error: null
   });
 
-  // Load authentication state from localStorage on mount
+  // Initialize and check existing session
   useEffect(() => {
-    const loadAuthState = () => {
+    const initializeSession = async () => {
       try {
-        const savedState = localStorage.getItem(GPS51_AUTH_KEY);
-        if (savedState) {
-          const authState: GPS51AuthState = JSON.parse(savedState);
-          
-          // Check if session is still valid
-          if (authState.expiresAt && new Date(authState.expiresAt) > new Date()) {
-            setIsAuthenticated(authState.isAuthenticated);
-            setCurrentUsername(authState.username);
-            console.log('🔄 GPS51 auth state restored from localStorage');
-          } else {
-            // Clear expired session
-            localStorage.removeItem(GPS51_AUTH_KEY);
-            console.log('🔄 GPS51 session expired, cleared localStorage');
-          }
+        console.log('🔄 Initializing GPS51 session...');
+        
+        // Initialize the session manager
+        await gps51SessionManager.initialize();
+        
+        // Check if we have a valid session
+        const isValid = await gps51SessionManager.validateSession();
+        
+        if (isValid) {
+          const sessionData = gps51SessionManager.getSession();
+          setAuthState({
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+            username: sessionData?.username,
+            sessionData
+          });
+          console.log('✅ GPS51 session restored successfully');
+        } else {
+          setAuthState({
+            isAuthenticated: false,
+            isLoading: false,
+            error: null
+          });
+          console.log('ℹ️ No valid GPS51 session found');
         }
       } catch (error) {
-        console.error('Failed to load GPS51 auth state:', error);
-        localStorage.removeItem(GPS51_AUTH_KEY);
+        console.error('❌ Failed to initialize GPS51 session:', error);
+        setAuthState({
+          isAuthenticated: false,
+          isLoading: false,
+          error: error instanceof Error ? error.message : 'Session initialization failed'
+        });
       }
     };
 
-    loadAuthState();
-  }, []);
-
-  // Save authentication state to localStorage
-  const saveAuthState = useCallback((authState: Partial<GPS51AuthState>) => {
-    try {
-      const currentState = localStorage.getItem(GPS51_AUTH_KEY);
-      const existing = currentState ? JSON.parse(currentState) : {};
-      
-      const newState: GPS51AuthState = {
-        ...existing,
-        ...authState,
-        lastActivity: new Date().toISOString()
-      };
-      
-      localStorage.setItem(GPS51_AUTH_KEY, JSON.stringify(newState));
-      console.log('💾 GPS51 auth state saved to localStorage');
-    } catch (error) {
-      console.error('Failed to save GPS51 auth state:', error);
-    }
+    initializeSession();
   }, []);
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
-      setIsLoading(true);
-      setError(null);
-      console.log('🔐 Starting GPS51 authentication...');
-
-      // Call the real GPS51 authentication edge function
-      const { data, error: authError } = await supabase.functions.invoke('gp51-secure-auth', {
+      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+      
+      console.log('🔐 Attempting GPS51 login...');
+      
+      // Authenticate with GP51 using the edge function
+      const { data, error } = await supabase.functions.invoke('gp51-secure-auth', {
         body: {
           action: 'authenticate',
-          username: username.trim(),
-          password: password
+          username,
+          password
         }
       });
 
-      if (authError) {
-        console.error('❌ GPS51 authentication error:', authError);
-        const errorMsg = authError.message || 'Authentication failed';
-        setError(errorMsg);
-        
-        // Update security stats for failed attempt
-        setSecurityStats(prev => ({
-          ...prev,
-          failedAttempts: prev.failedAttempts + 1,
-          recentFailedAttempts: prev.recentFailedAttempts + 1,
-          securityLevel: prev.failedAttempts > 2 ? 'low' : 'medium',
-          totalEvents: prev.totalEvents + 1,
-          lastEventTime: new Date()
-        }));
-        
-        toast({
-          title: "Authentication Failed",
-          description: errorMsg,
-          variant: "destructive",
-        });
-        
-        return false;
+      if (error || !data.success) {
+        throw new Error(data?.error || error?.message || 'Authentication failed');
       }
 
-      if (!data?.success) {
-        console.error('❌ GPS51 authentication failed:', data?.error);
-        const errorMsg = data?.error || 'Authentication failed';
-        setError(errorMsg);
-        
-        // Update security stats for failed attempt
-        setSecurityStats(prev => ({
-          ...prev,
-          failedAttempts: prev.failedAttempts + 1,
-          recentFailedAttempts: prev.recentFailedAttempts + 1,
-          securityLevel: prev.failedAttempts > 2 ? 'low' : 'medium',
-          totalEvents: prev.totalEvents + 1,
-          lastEventTime: new Date()
-        }));
-        
-        toast({
-          title: "Login Failed",
-          description: errorMsg,
-          variant: "destructive",
-        });
-        
-        return false;
-      }
-
-      // Authentication successful
       console.log('✅ GPS51 authentication successful');
-      
-      const expiresAt = new Date(Date.now() + 23 * 60 * 60 * 1000); // 23 hours
-      
-      setIsAuthenticated(true);
-      setCurrentUsername(username);
-      
-      // Save to localStorage
-      saveAuthState({
+
+      // Store session data in GPS51SessionManager
+      await gps51SessionManager.setSessionFromAuth(username, data.token);
+
+      setAuthState({
         isAuthenticated: true,
-        username: username,
-        sessionId: data.sessionId || `session_${Date.now()}`,
-        expiresAt: expiresAt.toISOString()
+        isLoading: false,
+        error: null,
+        username: data.username,
+        sessionData: data
       });
-      
-      // Update security stats for successful authentication
-      setSecurityStats(prev => ({
-        ...prev,
-        totalConnections: prev.totalConnections + 1,
-        lastSuccessfulConnection: new Date(),
-        securityLevel: 'high',
-        recentFailedAttempts: 0, // Reset failed attempts on success
-        totalEvents: prev.totalEvents + 1,
-        lastEventTime: new Date()
-      }));
-      
-      toast({
-        title: "Login Successful",
-        description: `Connected to GPS51 as ${username}`,
-      });
-      
+
       return true;
-    } catch (err) {
-      console.error('❌ GPS51 authentication error:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Authentication failed';
-      setError(errorMsg);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Login failed';
+      console.error('❌ GPS51 login failed:', errorMessage);
       
-      toast({
-        title: "Authentication Error",
-        description: errorMsg,
-        variant: "destructive",
+      setAuthState({
+        isAuthenticated: false,
+        isLoading: false,
+        error: errorMessage
       });
       
       return false;
-    } finally {
-      setIsLoading(false);
     }
-  }, [saveAuthState, toast]);
-
-  const logout = useCallback(() => {
-    console.log('🚪 GPS51 logout initiated');
-    setIsAuthenticated(false);
-    setCurrentUsername(null);
-    setError(null);
-    
-    // Clear localStorage
-    localStorage.removeItem(GPS51_AUTH_KEY);
-    
-    toast({
-      title: "Logged Out",
-      description: "Successfully disconnected from GPS51",
-    });
-  }, [toast]);
-
-  const clearError = useCallback(() => {
-    setError(null);
   }, []);
 
-  const testConnection = useCallback(async (): Promise<boolean> => {
+  const logout = useCallback(async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-      console.log('🔍 Testing GPS51 connection...');
-
-      // Check if we have valid authentication
-      if (!isAuthenticated) {
-        setError('Not authenticated with GPS51');
-        return false;
-      }
-
-      // Test connection using the existing gp51-connection-check function
-      const { data, error: testError } = await supabase.functions.invoke('gp51-connection-check');
-
-      if (testError) {
-        console.error('❌ GPS51 connection test failed:', testError);
-        setError(testError.message || 'Connection test failed');
-        return false;
-      }
-
-      if (data?.success) {
-        console.log('✅ GPS51 connection test successful');
-        toast({
-          title: "Connection Test Successful",
-          description: "GPS51 connection is working properly",
-        });
-        return true;
-      } else {
-        console.error('❌ GPS51 connection test failed:', data?.error);
-        setError(data?.error || 'Connection test failed');
-        return false;
-      }
-    } catch (err) {
-      console.error('❌ GPS51 connection test error:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Connection test failed';
-      setError(errorMsg);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isAuthenticated, toast]);
-
-  const refreshSecurityStats = useCallback(async (): Promise<void> => {
-    try {
-      setIsLoading(true);
-      console.log('📊 Refreshing GPS51 security stats...');
+      console.log('👋 Logging out of GPS51...');
+      await gps51SessionManager.clearSession();
       
-      // Get stats from settings-management function
-      const { data, error: statsError } = await supabase.functions.invoke('settings-management', {
-        body: {
-          action: 'get-gp51-status'
-        }
+      setAuthState({
+        isAuthenticated: false,
+        isLoading: false,
+        error: null
       });
-
-      if (!statsError && data?.success) {
-        // Update stats based on real data
-        setSecurityStats(prev => ({
-          ...prev,
-          totalConnections: prev.totalConnections + Math.floor(Math.random() * 5),
-          lastEventTime: new Date()
-        }));
-      }
-    } catch (err) {
-      console.error('❌ Failed to refresh security stats:', err);
-    } finally {
-      setIsLoading(false);
+      
+      console.log('✅ GPS51 logout successful');
+    } catch (error) {
+      console.error('❌ GPS51 logout error:', error);
     }
   }, []);
 
   return {
-    isAuthenticated,
-    isLoading,
-    error,
+    ...authState,
     login,
     logout,
-    clearError,
-    testConnection,
-    securityStats,
-    refreshSecurityStats
+    refreshSession: () => gps51SessionManager.refreshSession()
   };
-}
+};

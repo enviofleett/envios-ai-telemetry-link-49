@@ -15,10 +15,10 @@ export interface GPS51SessionBridge {
 export const useGPS51SessionBridge = (): GPS51SessionBridge => {
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const { isAuthenticated } = useGPS51Integration();
+  const { isAuthenticated, isLoading: authLoading } = useGPS51Integration();
 
   const initializeSession = useCallback(async (): Promise<boolean> => {
     try {
@@ -38,7 +38,7 @@ export const useGPS51SessionBridge = (): GPS51SessionBridge => {
         return true;
       } else {
         setHasValidSession(false);
-        setError('GPS51 session validation failed');
+        setError('GPS51 session validation failed - please re-authenticate');
         return false;
       }
     } catch (err) {
@@ -61,7 +61,7 @@ export const useGPS51SessionBridge = (): GPS51SessionBridge => {
         console.log('✅ GPS51 session refreshed via bridge');
       } else {
         setHasValidSession(false);
-        setError('Session refresh failed');
+        setError('Session refresh failed - please re-authenticate');
       }
       
       return refreshed;
@@ -72,31 +72,16 @@ export const useGPS51SessionBridge = (): GPS51SessionBridge => {
     }
   }, []);
 
-  // Initialize session on mount and when authentication changes
+  // Initialize session when authentication changes
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !authLoading) {
       initializeSession();
-    } else {
+    } else if (!isAuthenticated && !authLoading) {
       setIsSessionReady(false);
       setHasValidSession(false);
       setIsLoading(false);
     }
-  }, [isAuthenticated, initializeSession]);
-
-  // Periodic session validation
-  useEffect(() => {
-    if (!hasValidSession) return;
-
-    const interval = setInterval(async () => {
-      const isValid = await gps51SessionManager.validateSession();
-      if (!isValid) {
-        setHasValidSession(false);
-        setError('Session expired or invalid');
-      }
-    }, 5 * 60 * 1000); // Check every 5 minutes
-
-    return () => clearInterval(interval);
-  }, [hasValidSession]);
+  }, [isAuthenticated, authLoading, initializeSession]);
 
   return {
     isSessionReady,
