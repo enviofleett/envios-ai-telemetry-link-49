@@ -1,288 +1,149 @@
 
-import React, { useState } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Truck, 
-  MapPin, 
-  Activity, 
-  BarChart3, 
-  Shield,
-  Navigation,
-  Clock,
-  Gauge
-} from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { MapPin, Activity, Clock, Zap } from 'lucide-react';
 import { gps51TrackingService } from '@/services/gps51/GPS51TrackingService';
-import LiveTrackingDashboard from './LiveTrackingDashboard';
-import GPS51AuthenticationForm from './GPS51AuthenticationForm';
-import { useGPS51Integration } from '@/hooks/useGPS51Integration';
 
 const FleetManagementPage: React.FC = () => {
-  const { isAuthenticated, isLoading } = useGPS51Integration();
-
-  // Fetch fleet summary data
-  const {
-    data: deviceData,
-    isLoading: devicesLoading
-  } = useQuery({
+  const { data: deviceList, isLoading: devicesLoading } = useQuery({
     queryKey: ['gps51-devices'],
     queryFn: () => gps51TrackingService.queryDeviceList(),
-    enabled: isAuthenticated,
-    refetchInterval: 60000
+    refetchInterval: 30000,
   });
 
-  const {
-    data: positionData,
-    isLoading: positionsLoading
-  } = useQuery({
-    queryKey: ['gps51-all-positions'],
+  const { data: positions, isLoading: positionsLoading } = useQuery({
+    queryKey: ['gps51-positions'],
     queryFn: () => gps51TrackingService.getLastPositions(),
-    enabled: isAuthenticated,
-    refetchInterval: 30000
+    refetchInterval: 15000,
   });
 
-  const devices = deviceData?.devices || [];
-  const positions = positionData?.positions || [];
+  const devices = deviceList?.devices || [];
+  const devicePositions = positions?.devices || [];
 
   // Calculate fleet statistics
-  const fleetStats = {
-    totalDevices: devices.length,
-    onlineDevices: devices.filter(d => d.status !== 'offline').length,
-    movingDevices: devices.filter(d => d.status === 'moving').length,
-    parkedDevices: devices.filter(d => d.status === 'parked').length,
-    offlineDevices: devices.filter(d => d.status === 'offline').length,
-    positionsReceived: positions.length,
-    averageSpeed: positions.length > 0 
-      ? Math.round(positions.reduce((sum, p) => sum + p.speed, 0) / positions.length)
-      : 0
-  };
+  const totalDevices = devices.length;
+  const onlineDevices = devices.filter(d => d.status === 'online').length;
+  const movingDevices = devicePositions.filter(d => d.speed > 0).length;
+  const totalDistance = devicePositions.reduce((sum, d) => sum + (d.speed * 0.1), 0); // Rough estimate
 
-  if (!isAuthenticated) {
+  if (devicesLoading) {
     return (
-      <div className="min-h-screen bg-gray-900 p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-4">
-              GPS51 Fleet Management
-            </h1>
-            <p className="text-gray-400 text-lg">
-              Advanced fleet tracking and monitoring system
-            </p>
-          </div>
-
-          <div className="max-w-md mx-auto">
-            <GPS51AuthenticationForm />
-          </div>
-        </div>
+      <div className="p-6">
+        <div className="text-center">Loading fleet data...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-white flex items-center justify-center gap-3 mb-4">
-            <Truck className="h-10 w-10 text-blue-400" />
-            GPS51 Fleet Management
-          </h1>
-          <p className="text-gray-400 text-lg">
-            Comprehensive fleet tracking and analytics dashboard
-          </p>
-        </div>
-
-        {/* Fleet Statistics Overview */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Total Fleet</p>
-                  <p className="text-2xl font-bold text-white">{fleetStats.totalDevices}</p>
-                </div>
-                <Truck className="h-8 w-8 text-blue-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Online</p>
-                  <p className="text-2xl font-bold text-green-400">{fleetStats.onlineDevices}</p>
-                </div>
-                <Activity className="h-8 w-8 text-green-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Moving</p>
-                  <p className="text-2xl font-bold text-blue-400">{fleetStats.movingDevices}</p>
-                </div>
-                <Navigation className="h-8 w-8 text-blue-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Parked</p>
-                  <p className="text-2xl font-bold text-yellow-400">{fleetStats.parkedDevices}</p>
-                </div>
-                <MapPin className="h-8 w-8 text-yellow-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Offline</p>
-                  <p className="text-2xl font-bold text-red-400">{fleetStats.offlineDevices}</p>
-                </div>
-                <Shield className="h-8 w-8 text-red-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Avg Speed</p>
-                  <p className="text-2xl font-bold text-purple-400">{fleetStats.averageSpeed}</p>
-                  <p className="text-xs text-gray-500">km/h</p>
-                </div>
-                <Gauge className="h-8 w-8 text-purple-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Data Points</p>
-                  <p className="text-2xl font-bold text-cyan-400">{fleetStats.positionsReceived}</p>
-                </div>
-                <BarChart3 className="h-8 w-8 text-cyan-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="live-tracking" className="space-y-6">
-          <TabsList className="grid grid-cols-4 w-full bg-gray-800 border-gray-700">
-            <TabsTrigger 
-              value="live-tracking" 
-              className="data-[state=active]:bg-blue-600 data-[state=active]:text-white"
-            >
-              <Activity className="h-4 w-4 mr-2" />
-              Live Tracking
-            </TabsTrigger>
-            <TabsTrigger 
-              value="historical" 
-              className="data-[state=active]:bg-blue-600 data-[state=active]:text-white"
-            >
-              <Clock className="h-4 w-4 mr-2" />
-              Historical Data
-            </TabsTrigger>
-            <TabsTrigger 
-              value="analytics" 
-              className="data-[state=active]:bg-blue-600 data-[state=active]:text-white"
-            >
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Analytics
-            </TabsTrigger>
-            <TabsTrigger 
-              value="settings" 
-              className="data-[state=active]:bg-blue-600 data-[state=active]:text-white"
-            >
-              <Shield className="h-4 w-4 mr-2" />
-              Fleet Settings
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="live-tracking" className="space-y-6">
-            <LiveTrackingDashboard />
-          </TabsContent>
-
-          <TabsContent value="historical" className="space-y-6">
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white">Historical Data & Playback</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12 text-gray-400">
-                  <Clock className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                  <h3 className="text-lg font-semibold mb-2">Historical Tracking Coming Soon</h3>
-                  <p>Trip history, route playback, and detailed analytics will be available here.</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="analytics" className="space-y-6">
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white">Fleet Analytics Dashboard</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12 text-gray-400">
-                  <BarChart3 className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                  <h3 className="text-lg font-semibold mb-2">Advanced Analytics Coming Soon</h3>
-                  <p>Comprehensive fleet reports, performance metrics, and insights will be available here.</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="settings" className="space-y-6">
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white">Fleet Configuration</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12 text-gray-400">
-                  <Shield className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                  <h3 className="text-lg font-semibold mb-2">Fleet Settings Coming Soon</h3>
-                  <p>Device management, geofencing, alerts, and system configuration will be available here.</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        {/* Loading States */}
-        {(devicesLoading || positionsLoading || isLoading) && (
-          <div className="fixed bottom-4 right-4">
-            <Card className="bg-blue-900/20 border-blue-700">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 text-blue-400">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
-                  <span className="text-sm">
-                    {isLoading ? 'Authenticating...' : 
-                     devicesLoading ? 'Loading devices...' : 
-                     'Updating positions...'}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Fleet Management Dashboard</h1>
+        <Badge variant="outline" className="px-3 py-1">
+          Live Data
+        </Badge>
       </div>
+
+      {/* Fleet Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalDevices}</div>
+            <p className="text-xs text-muted-foreground">
+              Fleet size
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Online</CardTitle>
+            <Activity className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{onlineDevices}</div>
+            <p className="text-xs text-muted-foreground">
+              Active vehicles
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Moving</CardTitle>
+            <Zap className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{movingDevices}</div>
+            <p className="text-xs text-muted-foreground">
+              In transit
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Distance Today</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalDistance.toFixed(1)} km</div>
+            <p className="text-xs text-muted-foreground">
+              Estimated total
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Device Status Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Vehicle Status Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {devices.length === 0 ? (
+              <div className="text-center text-muted-foreground py-8">
+                No devices found. Please check your GPS51 connection.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {devices.map((device) => {
+                  const position = devicePositions.find(p => p.deviceid === device.deviceid);
+                  return (
+                    <Card key={device.deviceid} className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold truncate">{device.devicename}</h3>
+                        <Badge 
+                          variant={device.status === 'online' ? 'default' : 'secondary'}
+                          className={device.status === 'online' ? 'bg-green-100 text-green-800' : ''}
+                        >
+                          {device.status}
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <div>ID: {device.deviceid}</div>
+                        <div>SIM: {device.simnum}</div>
+                        {position && (
+                          <>
+                            <div>Speed: {position.speed} km/h</div>
+                            <div>Last Update: {new Date(position.updatetime * 1000).toLocaleString()}</div>
+                          </>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
