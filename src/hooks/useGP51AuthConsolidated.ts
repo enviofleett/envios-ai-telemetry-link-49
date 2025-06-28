@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { gp51AuthStateManager } from '@/services/gp51/GP51AuthStateManager';
 
 export interface GP51AuthResult {
   success: boolean;
@@ -26,8 +27,32 @@ export const useGP51AuthConsolidated = () => {
   });
   const { toast } = useToast();
 
+  // Subscribe to centralized auth state
+  useEffect(() => {
+    const unsubscribe = gp51AuthStateManager.subscribe((centralState) => {
+      setAuthState(prev => ({
+        ...prev,
+        isAuthenticated: centralState.isAuthenticated,
+        username: centralState.username,
+        tokenExpiresAt: centralState.tokenExpiresAt,
+        isLoading: centralState.isAuthenticating,
+        error: centralState.error || null,
+        isCheckingStatus: false
+      }));
+    });
+
+    return unsubscribe;
+  }, []);
+
   const checkAuthStatus = useCallback(async () => {
     console.log('🔍 [GP51Auth] Checking GP51 authentication status...');
+    
+    // Don't check status if authentication is in progress
+    if (gp51AuthStateManager.isLocked()) {
+      console.log('🔒 [GP51Auth] Skipping status check - auth in progress');
+      return;
+    }
+
     setAuthState(prev => ({ ...prev, isCheckingStatus: true }));
 
     try {
@@ -37,12 +62,9 @@ export const useGP51AuthConsolidated = () => {
 
       if (error) {
         console.error('❌ [GP51Auth] Status check error:', error);
-        setAuthState(prev => ({
-          ...prev,
-          isAuthenticated: false,
-          error: 'Failed to check authentication status',
-          isCheckingStatus: false
-        }));
+        await gp51AuthStateManager.setAuthenticated(false, {
+          error: 'Failed to check authentication status'
+        });
         return;
       }
 
@@ -54,33 +76,33 @@ export const useGP51AuthConsolidated = () => {
         expiresAt: data.expiresAt
       });
 
-      setAuthState(prev => ({
-        ...prev,
-        isAuthenticated,
+      await gp51AuthStateManager.setAuthenticated(isAuthenticated, {
         username: data.username,
-        tokenExpiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
-        error: null,
-        isCheckingStatus: false
-      }));
+        tokenExpiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined
+      });
 
     } catch (error) {
       console.error('❌ [GP51Auth] Status check failed:', error);
-      setAuthState(prev => ({
-        ...prev,
-        isAuthenticated: false,
-        error: 'Authentication status check failed',
-        isCheckingStatus: false
-      }));
+      await gp51AuthStateManager.setAuthenticated(false, {
+        error: 'Authentication status check failed'
+      });
     }
   }, []);
 
   useEffect(() => {
-    checkAuthStatus();
+    // Initial status check with delay to allow for session initialization
+    const timer = setTimeout(() => {
+      checkAuthStatus();
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, [checkAuthStatus]);
 
   const login = useCallback(async (username: string, password: string): Promise<GP51AuthResult> => {
     console.log(`🔐 [GP51Auth] Starting GP51 login for: ${username}`);
-    setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+    
+    await gp51AuthStateManager.setAuthenticating(true);
+    gp51AuthStateManager.clearError();
 
     try {
       const { data, error } = await supabase.functions.invoke('settings-management', {
@@ -94,7 +116,9 @@ export const useGP51AuthConsolidated = () => {
       if (error) {
         console.error('❌ [GP51Auth] Login error:', error);
         const errorMessage = error.message || 'Authentication failed';
-        setAuthState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
+        
+        await gp51AuthStateManager.setAuthenticated(false, { error: errorMessage });
+        
         toast({
           title: "GP51 Authentication Failed",
           description: errorMessage,
@@ -105,7 +129,9 @@ export const useGP51AuthConsolidated = () => {
 
       if (!data.success) {
         console.error('❌ [GP51Auth] Authentication failed:', data.error);
-        setAuthState(prev => ({ ...prev, isLoading: false, error: data.error }));
+        
+        await gp51AuthStateManager.setAuthenticated(false, { error: data.error });
+        
         toast({
           title: "GP51 Authentication Failed",
           description: data.error || 'Invalid credentials',
@@ -124,14 +150,17 @@ export const useGP51AuthConsolidated = () => {
 
       const expiresAt = data.session?.expiresAt ? new Date(data.session.expiresAt) : undefined;
       
-      setAuthState({
-        isAuthenticated: true,
+      // Set authenticated state with session persistence delay
+      await gp51AuthStateManager.setAuthenticated(true, {
         username: data.session?.username || username.trim(),
-        tokenExpiresAt: expiresAt,
-        isLoading: false,
-        error: null,
-        isCheckingStatus: false
+        tokenExpiresAt: expiresAt
       });
+
+      // Force a session validation after the delay
+      setTimeout(async () => {
+        console.log('🔄 [GP51Auth] Validating session after authentication...');
+        await checkAuthStatus();
+      }, 3000);
 
       // Show detailed success notification
       toast({
@@ -156,7 +185,9 @@ export const useGP51AuthConsolidated = () => {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
       console.error('❌ [GP51Auth] Login exception:', error);
-      setAuthState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
+      
+      await gp51AuthStateManager.setAuthenticated(false, { error: errorMessage });
+      
       toast({
         title: "GP51 Authentication Error",
         description: errorMessage,
@@ -164,11 +195,11 @@ export const useGP51AuthConsolidated = () => {
       });
       return { success: false, error: errorMessage };
     }
-  }, [toast]);
+  }, [toast, checkAuthStatus]);
 
   const logout = useCallback(async (): Promise<GP51AuthResult> => {
     console.log('👋 [GP51Auth] Logging out from GP51...');
-    setAuthState(prev => ({ ...prev, isLoading: true }));
+    await gp51AuthStateManager.setAuthenticating(true);
 
     try {
       const { error } = await supabase.functions.invoke('settings-management', {
@@ -184,14 +215,7 @@ export const useGP51AuthConsolidated = () => {
         });
       }
 
-      setAuthState({
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-        isCheckingStatus: false,
-        username: undefined,
-        tokenExpiresAt: undefined,
-      });
+      await gp51AuthStateManager.setAuthenticated(false);
 
       toast({
         title: "GP51 Disconnected",
@@ -203,7 +227,7 @@ export const useGP51AuthConsolidated = () => {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Logout failed';
       console.error('❌ [GP51Auth] Logout exception:', error);
-      setAuthState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
+      await gp51AuthStateManager.setAuthenticated(false, { error: errorMessage });
       return { success: false, error: errorMessage };
     }
   }, [toast]);
@@ -214,7 +238,7 @@ export const useGP51AuthConsolidated = () => {
   }, [checkAuthStatus]);
 
   const clearError = useCallback(() => {
-    setAuthState(prev => ({ ...prev, error: null }));
+    gp51AuthStateManager.clearError();
   }, []);
 
   return {

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,7 @@ import {
   Wifi
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
+import { gp51AuthStateManager } from '@/services/gp51/GP51AuthStateManager';
 import type { GP51ConnectionTestResult, GP51ConnectionTesterProps } from '@/types/gp51-unified';
 
 export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({ 
@@ -21,38 +21,92 @@ export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [testResult, setTestResult] = useState<GP51ConnectionTestResult | null>(null);
+  const [authState, setAuthState] = useState(gp51AuthStateManager.getState());
   const { toast } = useToast();
-  const { testConnection, disconnect } = useUnifiedGP51Service();
+
+  useEffect(() => {
+    const unsubscribe = gp51AuthStateManager.subscribe((state) => {
+      setAuthState(state);
+      
+      // Update test result based on auth state
+      if (state.isAuthenticated && !state.error) {
+        const result: GP51ConnectionTestResult = {
+          success: true,
+          message: `Connected as ${state.username}`,
+          timestamp: new Date(),
+          data: { username: state.username, authenticated: true }
+        };
+        setTestResult(result);
+        onStatusChange?.(result);
+      } else if (state.error) {
+        const result: GP51ConnectionTestResult = {
+          success: false,
+          message: 'Authentication failed',
+          timestamp: new Date(),
+          error: state.error
+        };
+        setTestResult(result);
+        onStatusChange?.(result);
+      }
+    });
+
+    return unsubscribe;
+  }, [onStatusChange]);
 
   const handleTestConnection = async () => {
+    if (gp51AuthStateManager.isLocked()) {
+      toast({
+        title: "Test Skipped",
+        description: "Authentication in progress. Please wait.",
+        variant: "default"
+      });
+      return;
+    }
+
     setIsLoading(true);
     
     try {
       console.log('🧪 Starting GP51 connection test...');
       
-      const result = await testConnection();
+      const currentState = gp51AuthStateManager.getState();
       
-      // Convert the testConnection result to GP51ConnectionTestResult
-      const connectionTestResult: GP51ConnectionTestResult = {
-        success: result.success,
-        message: result.message,
-        timestamp: new Date(),
-        error: result.success ? undefined : result.message,
-        data: result.success ? { message: 'Connection successful' } : undefined
-      };
+      if (currentState.isAuthenticated && !currentState.error) {
+        const result: GP51ConnectionTestResult = {
+          success: true,
+          message: `Connection verified - authenticated as ${currentState.username}`,
+          timestamp: new Date(),
+          data: { 
+            username: currentState.username,
+            authenticated: true,
+            lastValidated: currentState.lastValidated 
+          }
+        };
 
-      setTestResult(connectionTestResult);
+        setTestResult(result);
+        onStatusChange?.(result);
 
-      // Call onStatusChange if provided
-      if (onStatusChange) {
-        onStatusChange(connectionTestResult);
+        toast({
+          title: "Connection Successful",
+          description: result.message,
+          variant: "default"
+        });
+      } else {
+        const result: GP51ConnectionTestResult = {
+          success: false,
+          message: currentState.error || 'Not authenticated with GP51',
+          timestamp: new Date(),
+          error: currentState.error || 'Authentication required'
+        };
+        
+        setTestResult(result);
+        onStatusChange?.(result);
+
+        toast({
+          title: "Connection Failed",
+          description: result.message,
+          variant: "destructive"
+        });
       }
-
-      toast({
-        title: result.success ? "Connection Successful" : "Connection Failed",
-        description: result.message,
-        variant: result.success ? "default" : "destructive"
-      });
 
     } catch (error) {
       console.error('❌ Connection test exception:', error);
@@ -64,10 +118,7 @@ export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({
       };
       
       setTestResult(errorResult);
-
-      if (onStatusChange) {
-        onStatusChange(errorResult);
-      }
+      onStatusChange?.(errorResult);
 
       toast({
         title: "Test Failed",
@@ -83,7 +134,7 @@ export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({
     setIsLoading(true);
     
     try {
-      await disconnect();
+      await gp51AuthStateManager.setAuthenticated(false);
       setTestResult(null);
       
       toast({
@@ -103,16 +154,16 @@ export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({
   };
 
   const getStatusIcon = () => {
-    if (isLoading) return <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />;
-    if (testResult?.success) return <CheckCircle className="h-5 w-5 text-green-600" />;
-    if (testResult && !testResult.success) return <XCircle className="h-5 w-5 text-red-600" />;
+    if (isLoading || authState.isAuthenticating) return <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />;
+    if (authState.isAuthenticated && !authState.error) return <CheckCircle className="h-5 w-5 text-green-600" />;
+    if (authState.error) return <XCircle className="h-5 w-5 text-red-600" />;
     return <Wifi className="h-5 w-5 text-gray-400" />;
   };
 
   const getStatusText = () => {
-    if (isLoading) return 'Testing Connection...';
-    if (testResult?.success) return 'Connected';
-    if (testResult && !testResult.success) return 'Connection Failed';
+    if (isLoading || authState.isAuthenticating) return 'Testing Connection...';
+    if (authState.isAuthenticated && !authState.error) return 'Connected';
+    if (authState.error) return 'Connection Failed';
     return 'Not Tested';
   };
 
@@ -130,29 +181,29 @@ export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({
             {getStatusIcon()}
             <div>
               <p className="font-medium">{getStatusText()}</p>
-              {testResult && (
+              {(testResult || authState.lastValidated) && (
                 <p className="text-sm text-muted-foreground">
-                  Last tested: {testResult.timestamp.toLocaleTimeString()}
+                  Last tested: {(testResult?.timestamp || authState.lastValidated)?.toLocaleTimeString()}
                 </p>
               )}
             </div>
           </div>
           
-          <Badge variant={testResult?.success ? "default" : "secondary"}>
-            {testResult?.success ? 'Online' : 'Offline'}
+          <Badge variant={authState.isAuthenticated && !authState.error ? "default" : "secondary"}>
+            {authState.isAuthenticated && !authState.error ? 'Online' : 'Offline'}
           </Badge>
         </div>
 
-        {testResult && (
-          <Alert variant={testResult.success ? "default" : "destructive"}>
+        {(testResult || authState.error) && (
+          <Alert variant={(testResult?.success || (authState.isAuthenticated && !authState.error)) ? "default" : "destructive"}>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               <div className="space-y-2">
-                <p><strong>Status:</strong> {testResult.message}</p>
-                {testResult.error && (
-                  <p><strong>Error:</strong> {testResult.error}</p>
+                <p><strong>Status:</strong> {testResult?.message || authState.error || 'Connected'}</p>
+                {(testResult?.error || authState.error) && (
+                  <p><strong>Error:</strong> {testResult?.error || authState.error}</p>
                 )}
-                {testResult.data && (
+                {testResult?.data && (
                   <div className="text-sm">
                     <p><strong>Details:</strong></p>
                     <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto">
@@ -168,7 +219,7 @@ export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({
         <div className="flex gap-2">
           <Button
             onClick={handleTestConnection}
-            disabled={isLoading}
+            disabled={isLoading || authState.isAuthenticating}
             variant="outline"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
@@ -177,7 +228,7 @@ export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({
 
           <Button
             onClick={clearSessions}
-            disabled={isLoading}
+            disabled={isLoading || authState.isAuthenticating}
             variant="outline"
             className="text-red-600 hover:text-red-700"
           >
@@ -187,9 +238,9 @@ export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({
         </div>
 
         <div className="text-xs text-muted-foreground space-y-1">
-          <p>• Test Connection: Verifies GP51 API connectivity</p>
-          <p>• Clear Sessions: Removes all stored GP51 sessions (requires re-authentication)</p>
-          <p>• Use "Clear Sessions" if you're experiencing persistent authentication issues</p>
+          <p>• Test Connection: Verifies current authentication state</p>
+          <p>• Clear Sessions: Resets GP51 authentication state</p>
+          <p>• State is synchronized across all components</p>
         </div>
       </CardContent>
     </Card>
