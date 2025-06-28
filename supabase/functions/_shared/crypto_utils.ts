@@ -126,10 +126,56 @@ function leftRotate(value: number, amount: number): number {
   return ((value << amount) | (value >>> (32 - amount))) >>> 0;
 }
 
+// Input sanitization function for security
+export function sanitizeInput(input: string, type: 'deviceId' | 'imei' | 'username' | 'password' = 'username'): { isValid: boolean; sanitized: string; error?: string } {
+  if (!input || typeof input !== 'string') {
+    return { isValid: false, sanitized: '', error: 'Input must be a non-empty string' };
+  }
+
+  const trimmed = input.trim();
+  
+  if (trimmed.length === 0) {
+    return { isValid: false, sanitized: '', error: 'Input cannot be empty' };
+  }
+
+  switch (type) {
+    case 'deviceId':
+      if (trimmed.length < 3 || trimmed.length > 50) {
+        return { isValid: false, sanitized: trimmed, error: 'Device ID must be between 3 and 50 characters' };
+      }
+      // Remove potentially harmful characters
+      const sanitizedDeviceId = trimmed.replace(/[<>\"'&]/g, '');
+      return { isValid: true, sanitized: sanitizedDeviceId };
+      
+    case 'imei':
+      if (!/^\d{15}$/.test(trimmed)) {
+        return { isValid: false, sanitized: trimmed, error: 'IMEI must be exactly 15 digits' };
+      }
+      return { isValid: true, sanitized: trimmed };
+      
+    case 'username':
+      if (trimmed.length < 3 || trimmed.length > 30) {
+        return { isValid: false, sanitized: trimmed, error: 'Username must be between 3 and 30 characters' };
+      }
+      // Remove potentially harmful characters
+      const sanitizedUsername = trimmed.replace(/[<>\"'&]/g, '');
+      return { isValid: true, sanitized: sanitizedUsername };
+      
+    case 'password':
+      if (trimmed.length < 4 || trimmed.length > 100) {
+        return { isValid: false, sanitized: trimmed, error: 'Password must be between 4 and 100 characters' };
+      }
+      return { isValid: true, sanitized: trimmed };
+      
+    default:
+      return { isValid: true, sanitized: trimmed };
+  }
+}
+
 // Rate limiting implementation
 const rateLimitMap = new Map<string, { count: number; timestamp: number }>();
 
-export function checkRateLimit(identifier: string, maxRequests: number, windowMs: number): boolean {
+export function checkRateLimit(identifier: string, maxRequests: number = 10, windowMs: number = 60000): boolean {
   const now = Date.now();
   const entry = rateLimitMap.get(identifier);
   
@@ -167,11 +213,11 @@ export async function verifySecureHash(input: string, storedHash: string): Promi
   }
 }
 
-// Test MD5 implementation
+// Test MD5 implementation with corrected test cases
 console.log('🧪 Testing MD5 implementation...');
 const testCases = [
   { input: 'test', expected: '098f6bcd4621d373cade4e832627b4f6' },
-  { input: 'password', expected: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8' },
+  { input: 'password', expected: '5f4dcc3b5aa765d61d8327deb882cf99' }, // Corrected
   { input: '123456', expected: 'e10adc3949ba59abbe56e057f20f883e' },
   { input: 'hello', expected: '5d41402abc4b2a76b9719d911017c592' }
 ];
@@ -180,13 +226,13 @@ let passedTests = 0;
 for (const test of testCases) {
   const result = md5Pure(test.input);
   const passed = result === test.expected;
-  console.log(`📝 Test "${test.input}": ${passed ? '✅' : '❌'}`);
+  console.log(`📝 Test "${test.input}": ${passed ? '✅' : '❌'} (got: ${result}, expected: ${test.expected})`);
   if (passed) passedTests++;
 }
 
-console.log(`📊 MD5 Tests: ${passedTests === testCases.length ? '✅ ALL PASSED' : '❌ SOME FAILED'}`);
+console.log(`📊 MD5 Tests: ${passedTests}/${testCases.length} ${passedTests === testCases.length ? '✅ ALL PASSED' : '❌ SOME FAILED'}`);
 
-// Test with a known GP51 password
-const testPassword = 'your_test_password_here';
-const hashedPassword = md5Pure(testPassword);
-console.log(`🔐 Your password hash: ${hashedPassword}`);
+// Test with GP51 example
+const testGP51Password = 'password';
+const hashedPassword = md5Pure(testGP51Password);
+console.log(`🔐 GP51 Password "${testGP51Password}" → MD5: ${hashedPassword}`);
