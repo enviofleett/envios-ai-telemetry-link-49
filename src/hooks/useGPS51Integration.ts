@@ -16,6 +16,14 @@ export interface GPS51SecurityStats {
   sessionDuration: number;
   failedAttempts: number;
   lastValidation: Date | null;
+  securityLevel?: string;
+  totalConnections?: number;
+  totalEvents?: number;
+  recentFailedAttempts?: number;
+  lastSuccessfulConnection?: Date | null;
+  lockedAccounts?: number;
+  rateLimitExceeded?: number;
+  lastEventTime?: Date | null;
 }
 
 export const useGPS51Integration = () => {
@@ -29,7 +37,15 @@ export const useGPS51Integration = () => {
     lastAuthentication: null,
     sessionDuration: 0,
     failedAttempts: 0,
-    lastValidation: null
+    lastValidation: null,
+    securityLevel: 'normal',
+    totalConnections: 0,
+    totalEvents: 0,
+    recentFailedAttempts: 0,
+    lastSuccessfulConnection: null,
+    lockedAccounts: 0,
+    rateLimitExceeded: 0,
+    lastEventTime: null
   });
 
   // Initialize and check existing session
@@ -58,7 +74,9 @@ export const useGPS51Integration = () => {
           setSecurityStats(prev => ({
             ...prev,
             lastAuthentication: sessionData?.lastActivity || null,
-            lastValidation: new Date()
+            lastValidation: new Date(),
+            lastSuccessfulConnection: new Date(),
+            totalConnections: (prev.totalConnections || 0) + 1
           }));
           
           console.log('✅ GPS51 session restored successfully');
@@ -121,7 +139,11 @@ export const useGPS51Integration = () => {
         lastAuthentication: new Date(),
         sessionDuration: 0,
         failedAttempts: 0,
-        lastValidation: new Date()
+        lastValidation: new Date(),
+        lastSuccessfulConnection: new Date(),
+        totalConnections: (prev.totalConnections || 0) + 1,
+        totalEvents: (prev.totalEvents || 0) + 1,
+        lastEventTime: new Date()
       }));
 
       return true;
@@ -138,7 +160,10 @@ export const useGPS51Integration = () => {
       // Update failed attempts
       setSecurityStats(prev => ({
         ...prev,
-        failedAttempts: prev.failedAttempts + 1
+        failedAttempts: prev.failedAttempts + 1,
+        recentFailedAttempts: (prev.recentFailedAttempts || 0) + 1,
+        totalEvents: (prev.totalEvents || 0) + 1,
+        lastEventTime: new Date()
       }));
       
       return false;
@@ -161,7 +186,15 @@ export const useGPS51Integration = () => {
         lastAuthentication: null,
         sessionDuration: 0,
         failedAttempts: 0,
-        lastValidation: null
+        lastValidation: null,
+        securityLevel: 'normal',
+        totalConnections: 0,
+        totalEvents: 0,
+        recentFailedAttempts: 0,
+        lastSuccessfulConnection: null,
+        lockedAccounts: 0,
+        rateLimitExceeded: 0,
+        lastEventTime: null
       });
       
       console.log('✅ GPS51 logout successful');
@@ -200,7 +233,10 @@ export const useGPS51Integration = () => {
       // Update security stats
       setSecurityStats(prev => ({
         ...prev,
-        lastValidation: new Date()
+        lastValidation: new Date(),
+        lastSuccessfulConnection: new Date(),
+        totalEvents: (prev.totalEvents || 0) + 1,
+        lastEventTime: new Date()
       }));
 
       return true;
@@ -213,7 +249,7 @@ export const useGPS51Integration = () => {
   }, []);
 
   const refreshSecurityStats = useCallback(async () => {
-    const session = gp51SessionManager.getSession();
+    const session = gps51SessionManager.getSession();
     if (session) {
       const sessionDuration = Date.now() - session.lastActivity.getTime();
       setSecurityStats(prev => ({
@@ -238,7 +274,9 @@ export const useGPS51Integration = () => {
         // Update security stats
         setSecurityStats(prev => ({
           ...prev,
-          lastValidation: new Date()
+          lastValidation: new Date(),
+          totalEvents: (prev.totalEvents || 0) + 1,
+          lastEventTime: new Date()
         }));
       }
       return refreshed;
