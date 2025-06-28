@@ -1,17 +1,18 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, LogIn, LogOut, Shield } from 'lucide-react';
+import { Loader2, LogIn, LogOut, Shield, CheckCircle, AlertCircle } from 'lucide-react';
 import { useGPS51Integration } from '@/hooks/useGPS51Integration';
 
 const GPS51AuthenticationForm: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [lastLoginAttempt, setLastLoginAttempt] = useState<Date | null>(null);
   
   const {
     isAuthenticated,
@@ -19,8 +20,16 @@ const GPS51AuthenticationForm: React.FC = () => {
     error,
     login,
     logout,
-    clearError
+    clearError,
+    testConnection
   } = useGPS51Integration();
+
+  // Clear form on successful authentication
+  useEffect(() => {
+    if (isAuthenticated) {
+      setPassword('');
+    }
+  }, [isAuthenticated]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,9 +38,11 @@ const GPS51AuthenticationForm: React.FC = () => {
       return;
     }
 
+    setLastLoginAttempt(new Date());
     const success = await login(username.trim(), password);
+    
     if (success) {
-      setPassword(''); // Clear password on successful login
+      console.log('✅ GPS51 authentication successful in form');
     }
   };
 
@@ -39,6 +50,12 @@ const GPS51AuthenticationForm: React.FC = () => {
     logout();
     setUsername('');
     setPassword('');
+    setLastLoginAttempt(null);
+  };
+
+  const handleTestConnection = async () => {
+    const result = await testConnection();
+    console.log('🔍 Connection test result:', result);
   };
 
   return (
@@ -47,11 +64,15 @@ const GPS51AuthenticationForm: React.FC = () => {
         <CardTitle className="flex items-center gap-2 text-white">
           <Shield className="h-5 w-5 text-blue-400" />
           GPS51 Authentication
+          {isAuthenticated && (
+            <CheckCircle className="h-4 w-4 text-green-400 ml-auto" />
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error && (
           <Alert variant="destructive" className="bg-red-900/20 border-red-700">
+            <AlertCircle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between text-red-400">
               <span>{error}</span>
               <Button
@@ -70,27 +91,48 @@ const GPS51AuthenticationForm: React.FC = () => {
           <div className="space-y-4">
             <div className="p-4 bg-green-900/20 border border-green-700 rounded-lg">
               <div className="flex items-center gap-2 text-green-400">
-                <Shield className="h-4 w-4" />
+                <CheckCircle className="h-4 w-4" />
                 <span className="font-medium">Connected to GPS51</span>
               </div>
               <p className="text-sm text-green-300 mt-1">
                 Authentication successful. You can now access GPS51 services.
               </p>
+              {lastLoginAttempt && (
+                <p className="text-xs text-green-400 mt-2">
+                  Last login: {lastLoginAttempt.toLocaleTimeString()}
+                </p>
+              )}
             </div>
             
-            <Button
-              onClick={handleLogout}
-              disabled={isLoading}
-              variant="outline"
-              className="w-full border-gray-600 text-gray-300 hover:bg-gray-700"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <LogOut className="h-4 w-4 mr-2" />
-              )}
-              Disconnect
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleTestConnection}
+                disabled={isLoading}
+                variant="outline"
+                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-700"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Shield className="h-4 w-4 mr-2" />
+                )}
+                Test Connection
+              </Button>
+              
+              <Button
+                onClick={handleLogout}
+                disabled={isLoading}
+                variant="outline"
+                className="border-gray-600 text-gray-300 hover:bg-gray-700"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <LogOut className="h-4 w-4 mr-2" />
+                )}
+                Disconnect
+              </Button>
+            </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -155,9 +197,9 @@ const GPS51AuthenticationForm: React.FC = () => {
             </Button>
 
             <div className="text-sm text-gray-400 space-y-1">
-              <p>• Passwords are securely hashed using MD5</p>
-              <p>• Rate limiting: 5 attempts per 15 minutes</p>
-              <p>• Account lockout after failed attempts</p>
+              <p>• Secure authentication with GPS51 platform</p>
+              <p>• Session persists across page refreshes</p>
+              <p>• Automatic session management and renewal</p>
             </div>
           </form>
         )}
