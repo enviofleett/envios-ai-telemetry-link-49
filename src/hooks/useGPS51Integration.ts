@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { GP51SessionManager } from '@/services/gp51/sessionManager';
-import { gps51ProductionService } from '@/services/gp51/GPS51ProductionService';
+import { gps51ProductionService } from '@/services/gps51/GPS51ProductionService';
 
 export interface GPS51AuthState {
   isAuthenticated: boolean;
@@ -56,41 +56,20 @@ export const useGPS51Integration = () => {
   useEffect(() => {
     const initializeSession = async () => {
       try {
-        console.log('🔄 [GPS51-INTEGRATION] Initializing session...');
         setIsLoading(true);
-        setError(null);
-
-        // Test existing connection
-        const connectionTest = await gps51ProductionService.testConnection();
         
-        if (connectionTest.success) {
+        // Check if there's an existing valid session
+        const sessionValidation = await GP51SessionManager.validateSession();
+        
+        if (sessionValidation.valid && sessionValidation.session) {
           setIsAuthenticated(true);
-          setSecurityStats(prev => ({
-            ...prev,
-            isConnected: true,
-            lastValidation: new Date(),
-            lastSuccessfulConnection: new Date(),
-            totalConnections: (prev.totalConnections || 0) + 1
-          }));
-          
+          setUsername(sessionValidation.session.username);
           console.log('✅ [GPS51-INTEGRATION] Existing session validated');
         } else {
-          console.log('ℹ️ [GPS51-INTEGRATION] No valid session found');
-          setIsAuthenticated(false);
-          setSecurityStats(prev => ({
-            ...prev,
-            isConnected: false
-          }));
+          console.log('ℹ️ [GPS51-INTEGRATION] No valid existing session');
         }
-
-      } catch (err) {
-        console.error('❌ [GPS51-INTEGRATION] Session initialization failed:', err);
-        setError(err instanceof Error ? err.message : 'Session initialization failed');
-        setIsAuthenticated(false);
-        setSecurityStats(prev => ({
-          ...prev,
-          isConnected: false
-        }));
+      } catch (error) {
+        console.error('❌ [GPS51-INTEGRATION] Session initialization failed:', error);
       } finally {
         setIsLoading(false);
       }
@@ -99,60 +78,67 @@ export const useGPS51Integration = () => {
     initializeSession();
   }, []);
 
-  const login = useCallback(async (usernameInput: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (usernameInput: string, password: string): Promise<{
+    success: boolean;
+    error?: string;
+  }> => {
     try {
-      console.log('🔐 [GPS51-INTEGRATION] Starting authentication...');
       setIsLoading(true);
-      setError(null);
-
-      const result = await gps51ProductionService.authenticate(usernameInput, password);
-
-      if (result.success) {
+      setError('');
+      
+      console.log('🔐 [GPS51-INTEGRATION] Attempting login...');
+      
+      const response = await gps51ProductionService.authenticate(usernameInput, password);
+      
+      if (response.success && response.token && response.username) {
+        // Store session via session manager
+        await GP51SessionManager.getInstance().setSessionFromAuth(response.username, response.token);
+        
         setIsAuthenticated(true);
-        setUsername(result.username || usernameInput);
+        setUsername(response.username);
+        
+        // Update security stats
         setSecurityStats(prev => ({
           ...prev,
-          isConnected: true,
-          lastAuthentication: new Date(),
-          sessionDuration: 0,
-          failedAttempts: 0,
-          lastValidation: new Date(),
-          lastSuccessfulConnection: new Date(),
-          totalConnections: (prev.totalConnections || 0) + 1,
-          totalEvents: (prev.totalEvents || 0) + 1,
+          successfulLogins: prev.successfulLogins + 1,
+          lastLoginTime: new Date(),
           lastEventTime: new Date()
         }));
-
-        console.log('✅ [GPS51-INTEGRATION] Authentication successful');
-        return true;
-      } else {
-        console.log('❌ [GPS51-INTEGRATION] Authentication failed:', result.error);
-        setError(result.error || 'Authentication failed');
-        setIsAuthenticated(false);
         
-        // Update failed attempts
+        console.log('✅ [GPS51-INTEGRATION] Login successful');
+        return { success: true };
+      } else {
+        const errorMsg = response.error || 'Authentication failed';
+        setError(errorMsg);
+        
+        // Update security stats
         setSecurityStats(prev => ({
           ...prev,
           failedAttempts: prev.failedAttempts + 1,
-          recentFailedAttempts: (prev.recentFailedAttempts || 0) + 1,
-          totalEvents: (prev.totalEvents || 0) + 1,
           lastEventTime: new Date()
         }));
         
-        return false;
+        console.error('❌ [GPS51-INTEGRATION] Login failed:', errorMsg);
+        return { success: false, error: errorMsg };
       }
-    } catch (err) {
-      console.error('❌ [GPS51-INTEGRATION] Authentication error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Authentication failed';
-      setError(errorMessage);
-      setIsAuthenticated(false);
-      return false;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Login failed';
+      setError(errorMsg);
+      
+      setSecurityStats(prev => ({
+        ...prev,
+        failedAttempts: prev.failedAttempts + 1,
+        lastEventTime: new Date()
+      }));
+      
+      console.error('❌ [GPS51-INTEGRATION] Login exception:', error);
+      return { success: false, error: errorMsg };
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const logout = useCallback(async (): Promise<boolean> => {
+  const logout = useCallback(async (): Promise<void> => {
     try {
       console.log('👋 [GPS51-INTEGRATION] Logging out...');
       
@@ -161,97 +147,78 @@ export const useGPS51Integration = () => {
       
       // Reset state
       setIsAuthenticated(false);
-      setUsername(null);
-      setError(null);
-      setSecurityStats({
-        isConnected: false,
-        lastAuthentication: null,
-        sessionDuration: 0,
-        failedAttempts: 0,
-        lastValidation: null,
-        securityLevel: 'normal',
-        totalConnections: 0,
-        totalEvents: 0,
-        recentFailedAttempts: 0,
-        lastSuccessfulConnection: null,
-        lockedAccounts: 0,
-        rateLimitExceeded: 0,
-        lastEventTime: null
-      });
+      setUsername('');
+      setError('');
       
       console.log('✅ [GPS51-INTEGRATION] Logout successful');
-      return true;
-    } catch (err) {
-      console.error('❌ [GPS51-INTEGRATION] Logout error:', err);
-      setError(err instanceof Error ? err.message : 'Logout failed');
-      return false;
+    } catch (error) {
+      console.error('❌ [GPS51-INTEGRATION] Logout failed:', error);
+      // Even if logout fails, reset local state
+      setIsAuthenticated(false);
+      setUsername('');
     }
   }, []);
 
-  const testConnection = useCallback(async (): Promise<boolean> => {
+  const testConnection = useCallback(async (): Promise<{
+    success: boolean;
+    error?: string;
+  }> => {
     try {
+      setIsLoading(true);
       console.log('🧪 [GPS51-INTEGRATION] Testing connection...');
-      setError(null);
-
-      const result = await gps51ProductionService.testConnection();
-
-      if (result.success) {
-        // Update security stats
-        setSecurityStats(prev => ({
-          ...prev,
-          lastValidation: new Date(),
-          lastSuccessfulConnection: new Date(),
-          totalEvents: (prev.totalEvents || 0) + 1,
-          lastEventTime: new Date()
-        }));
-
+      
+      const response = await gps51ProductionService.testConnection();
+      
+      if (response.success) {
         console.log('✅ [GPS51-INTEGRATION] Connection test successful');
-        return true;
+        return { success: true };
       } else {
-        setError(result.error || 'Connection test failed');
-        return false;
+        const errorMsg = response.error || 'Connection test failed';
+        console.error('❌ [GPS51-INTEGRATION] Connection test failed:', errorMsg);
+        return { success: false, error: errorMsg };
       }
-    } catch (err) {
-      console.error('❌ [GPS51-INTEGRATION] Connection test error:', err);
-      setError(err instanceof Error ? err.message : 'Connection test failed');
-      return false;
-    }
-  }, []);
-
-  const refreshSecurityStats = useCallback(async () => {
-    const session = GP51SessionManager.getSession();
-    if (session) {
-      const sessionDuration = Date.now() - session.lastActivity.getTime();
-      setSecurityStats(prev => ({
-        ...prev,
-        sessionDuration
-      }));
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Connection test failed';
+      console.error('❌ [GPS51-INTEGRATION] Connection test exception:', error);
+      return { success: false, error: errorMsg };
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
     try {
-      const result = await gps51ProductionService.testConnection();
+      console.log('🔄 [GPS51-INTEGRATION] Refreshing session...');
       
-      if (result.success) {
-        // Update security stats
-        setSecurityStats(prev => ({
-          ...prev,
-          lastValidation: new Date(),
-          totalEvents: (prev.totalEvents || 0) + 1,
-          lastEventTime: new Date()
-        }));
-        
-        console.log('✅ [GPS51-INTEGRATION] Session refreshed');
+      const refreshed = await GP51SessionManager.getInstance().refreshSession();
+      
+      if (refreshed) {
+        console.log('✅ [GPS51-INTEGRATION] Session refreshed successfully');
         return true;
       } else {
-        setError(result.error || 'Session refresh failed');
+        console.log('❌ [GPS51-INTEGRATION] Session refresh failed');
+        setIsAuthenticated(false);
+        setUsername('');
         return false;
       }
-    } catch (err) {
-      console.error('❌ [GPS51-INTEGRATION] Session refresh error:', err);
-      setError(err instanceof Error ? err.message : 'Session refresh failed');
+    } catch (error) {
+      console.error('❌ [GPS51-INTEGRATION] Session refresh exception:', error);
+      setIsAuthenticated(false);
+      setUsername('');
       return false;
+    }
+  }, []);
+
+  const refreshSecurityStats = useCallback(async () => {
+    const sessionManager = GP51SessionManager.getInstance();
+    const session = sessionManager.getSession();
+    if (session) {
+      const sessionDuration = Date.now() - session.lastActivity.getTime();
+      setSecurityStats(prev => ({
+        ...prev,
+        sessionDuration,
+        lastEventTime: new Date()
+      }));
     }
   }, []);
 
